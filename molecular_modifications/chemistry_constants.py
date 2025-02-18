@@ -1,0 +1,95 @@
+"""
+Dictionaries for storing chemical constants used throughout the library.
+"""
+
+ELECTRONEGATIVITY = {
+    "H": 2.2,
+    "C": 2.55,
+    "N": 3.04,
+    "O": 3.44,
+    "S": 2.58,
+    "P": 2.19,
+    "F": 3.98,
+    "Cl": 3.16,
+    'Br': 2.96,
+    'I': 2.66,
+    'B': 2.04,
+    'Si': 1.90
+}
+
+ATOMIC_NUMBERS = {
+    "H": 1,
+    "C": 6,
+    "N": 7,
+    "O": 8,
+    "S": 16,
+    "P": 15,
+    "F": 9,
+    "Cl": 17,
+    'Br': 35,
+    'I': 53,
+    'B': 5,
+    'Si': 14
+}
+
+VALENCE_ELECTRON_COUNTS = {
+    "H": 1,
+    "C": 4,
+    "N": 5,     
+    "O": 6,
+    "S": 6,
+    "P": 5,
+    "F": 7,
+    "Cl": 7,
+    'Br': 7,
+    'I': 7,
+    'B': 3,
+    'Si': 4
+}
+
+MAX_FORMAL_CHARGE = {
+    "H": 1,
+    "C": 1,
+    "N": 1,
+    "O": 1,
+    "S": 2,
+    "P": 3,
+    "F": 1,
+    "Cl": 1,
+    'Br': 1,
+    'I': 1,
+    'B': 2,
+    'Si': 2
+}
+
+# Empirical approximations
+
+VAN_DER_WAALS_RADII = {
+    "H": 1.20,
+    "C": 1.70,
+    "N": 1.55,
+    "O": 1.52,
+    "S": 1.80,
+    "P": 1.80,
+    "F": 1.47,
+    "Cl": 1.75,
+    'Br': 1.85,
+    'I': 2.20,
+    'B': 1.85,
+    'Si': 2.10
+}
+
+COVALENT_RADII = {
+    'H': 0.37,
+    'C': 0.76,
+    'N': 0.71,
+    'O': 0.66,
+    'S': 1.02,
+    'P': 1.07,
+    'F': 0.64,
+    'Cl': 1.00, 
+    'Br': 1.17,
+    'I': 1.39,
+    'B': 0.85,
+    'Si': 1.11
+}
