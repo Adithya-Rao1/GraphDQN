@@ -4,10 +4,10 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch_geometric.nn import GCNConv, global_mean_pool
 import numpy as np
-from replay_buffer import ReplayBuffer
-import dqn_hyperparams as dqn_hyperparams
+from dqn.replay_buffer import ReplayBuffer
+import dqn.dqn_hyperparams as dqn_hyperparams
 import random
-from utils import create_graph, obs_to_loader
+from dqn.utils import create_graph, obs_to_loader
 
 
 class DKDQNNetwork(nn.Module):

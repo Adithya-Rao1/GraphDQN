@@ -7,10 +7,10 @@ import random
 import numpy as np
 import rdkit
 from rdkit import Chem
-from all_envs import LogPEnv, LogPConstrainedEnv
-from dqn_network import DKDQNAgent
-from utils import create_graph, setup_dqn_logger, track, penalized_logp
-import dqn_hyperparams as hyp
+from dqn.all_envs import LogPEnv, LogPConstrainedEnv
+from dqn.dqn_network import DKDQNAgent
+from dqn.utils import create_graph, setup_dqn_logger, track, penalized_logp
+import dqn.dqn_hyperparams as hyp
 import smiles_800
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

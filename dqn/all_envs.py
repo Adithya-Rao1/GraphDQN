@@ -1,11 +1,11 @@
-from dqn_env import MoleculeEnv
+from dqn.dqn_env import MoleculeEnv
 import rdkit
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit import DataStructs
-from utils import penalized_logp
+from dqn.utils import penalized_logp
 
-import dqn_hyperparams as hyp
+import dqn.dqn_hyperparams as hyp
 
 from ADMET.model import ADMETModel
 from binding_module.binding_affinity.plapt import Plapt, run_predictions

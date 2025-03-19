@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from rdkit import Chem
 from rdkit.Chem import QED 
-from utils import penalized_logp
+from dqn.utils import penalized_logp
 
 from ADMET.model import ADMETModel
 from binding_module.binding_affinity.plapt import Plapt, run_predictions

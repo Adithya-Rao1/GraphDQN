@@ -3,7 +3,7 @@ from __future__ import absolute_import
 import subprocess
 import os
 from tqdm import tqdm
-from utils import setup_dqn_logger
+from dqn.utils import setup_dqn_logger
 
 def load_dataset(logger, wget_file, output_dir, num_smiles_per_file=70, log=False):
     def read_wget_file():

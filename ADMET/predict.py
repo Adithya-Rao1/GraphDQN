@@ -6,7 +6,7 @@ from tap import tapify
 
 from model import ADMETModel
 from constants import DEFAULT_DRUGBANK_PATH, DEFAULT_MODELS_DIR
-from utils import load_and_preprocess_data
+from dqn.utils import load_and_preprocess_data
 
 
 def admet_predict(

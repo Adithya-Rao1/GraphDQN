@@ -1,11 +1,11 @@
 import torch
-from dqn_network import DKDQNAgent
-from dqn_env import MoleculeEnv, get_all_actions
-from all_envs import QEDEnv
-import dqn_hyperparams as dqn_hyperparams
+from dqn.dqn_network import DKDQNAgent
+from dqn.dqn_env import MoleculeEnv, get_all_actions
+from dqn.all_envs import QEDEnv
+import dqn.dqn_hyperparams as dqn_hyperparams
 import math
 import numpy as np
-from utils import create_graph, setup_dqn_logger
+from dqn.utils import create_graph, setup_dqn_logger
 import rdkit
 from rdkit import Chem
 

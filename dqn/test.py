@@ -1,8 +1,9 @@
 from rdkit import Chem
 from rdkit.Chem import Descriptors
-from molecular_modifications.functional_group.bioisosteres_optimization import ModifyBioisosteres
-from molecular_modifications.atom.atom_optimization import ModifyAtom
-from molecular_modifications.bond.bond_optimization import ModifyBond
+from molecular_modifications.bioisosteres_optimization import ModifyBioisosteres
+from molecular_modifications.atom_optimization import ModifyAtom
+from molecular_modifications.bond_optimization import ModifyBond
+from molecular_modifications.functional_group_optimization import ModifyFunctionalGroup
 from molecular_modifications.logger import setup_molecule_logger
 import sys, os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -12,6 +13,7 @@ env = list(set(["C", "O"]))
 modify_atom = ModifyAtom(setup_molecule_logger())
 modify_bond = ModifyBond(setup_molecule_logger())
 modify_bio = ModifyBioisosteres(setup_molecule_logger())
+modify_fg = ModifyFunctionalGroup(setup_molecule_logger())
 
 actions = set()
 from synthetic_accessibility.sa_score import SyntheticAccessibility
@@ -74,7 +76,7 @@ from synthetic_accessibility.sa_score import SyntheticAccessibility
 
 print(actions)"""
 
-from utils import penalized_logp, largest_ring_size
+from dqn.utils import penalized_logp, largest_ring_size
 print(penalized_logp(Chem.MolFromSmiles('N#CC1=C(C(F)(F)F)C([N+]([O-])=O)=C(C2=CC=CC([N+]([O-])=O)=C2)NC1=O')))
 print(Descriptors.MolLogP(Chem.MolFromSmiles('N#CC1=C(C(F)(F)F)C([N+]([O-])=O)=C(C2=CC=CC([N+]([O-])=O)=C2)NC1=O')))
 print(SyntheticAccessibility().calculateScore(Chem.MolFromSmiles('N#CC1=C(C(F)(F)F)C([N+]([O-])=O)=C(C2=CC=CC([N+]([O-])=O)=C2)NC1=O')))

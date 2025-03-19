@@ -5,11 +5,11 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import torch
 import random
 import numpy as np
-from all_envs import MultiObjectiveRewardEnv
-from dqn_network import DKDQNAgent
-from utils import create_graph, setup_dqn_logger
-import dqn_hyperparams as hyp
-from utils import track, calc_multi_obj_properties
+from dqn.all_envs import MultiObjectiveRewardEnv
+from dqn.dqn_network import DKDQNAgent
+from dqn.utils import create_graph, setup_dqn_logger
+import dqn.dqn_hyperparams as hyp
+from dqn.utils import track, calc_multi_obj_properties
 import rdkit
 from rdkit import Chem
 
