@@ -109,7 +109,6 @@ class GraphDataset(Dataset):
     def graph_to_pyg(self, G):
         pyg_graph = from_networkx(G)
         
-        # Encode node features into a tensor (make sure you are using suitable encoding for categorical features)
         node_attrs = ['atomic_num', 'formal_charge', 'chiral_rag', 'hybridization', 'num_explicit_hs', 'is_aromatic']
         
         node_features = []
@@ -119,7 +118,6 @@ class GraphDataset(Dataset):
         
         pyg_graph.x = torch.tensor(node_features, dtype=torch.float)  # Node features tensor
 
-        # Encode edge features (bond_type) into a tensor
         edge_attr = []
         for edge in G.edges():
             edge_attr.append([G.edges[edge].get('bond_type', 0)])  # Bond type as a numeric value (or one-hot if needed)
