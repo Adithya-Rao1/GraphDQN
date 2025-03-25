@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+import torch_geometric as pyg
 
 class Actor(nn.Module):
     def __init__(self, state_dim, action_dim, max_action):
