@@ -22,6 +22,8 @@ TODO
 and node features as 2d tensor (each row representend feature vector of node)
 """
 
+# TURN MOL DIRECTLY INTO PYG OBJECT
+
 CHIRAL_TYPES = [rdc.ChiralType.CHI_UNSPECIFIED,
                         rdc.ChiralType.CHI_TETRAHEDRAL_CW,
                         rdc.ChiralType.CHI_TETRAHEDRAL_CCW,
@@ -56,7 +58,7 @@ class GraphDataset(Dataset):
     Args:
         data (list): List of SMILES strings or RDkit Mol objects
     """
-    def __init__(self, data):
+    def __init__(self, data=None):
         self.data = data
         self.mols = [Chem.MolFromSmiles(compound) if isinstance(compound, str) else compound for compound in data]        
         self.graphs = [self.graph_to_pyg(self.mol_to_graph(mol)) for mol in self.mols]

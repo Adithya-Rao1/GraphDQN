@@ -5,10 +5,12 @@ from typing import List, Dict, Tuple, Optional, Union, Set
 from rdkit import Chem
 from rdkit.Chem import AllChem
 
+# NEED TO ADD ALL POSSIBLE BONDING SITES FOR EACH FG
+
 # Constants for functional groups
 FUNCTIONAL_GROUPS = {
-    # Format: name: (SMARTS pattern, valence required)
-    'methyl': ('[CH3]', 1),
+    # Format: name: (SMARTS pattern, possible atoms/groups to bond to)
+    'methyl': ('[CH3]', ['C', 'N', 'S', 'O']),
     'hydroxyl': ('[OH]', 1),
     'amino': ('[NH2]', 1),
     'carboxyl': ('[C](=O)[OH]', 1),
@@ -147,6 +149,38 @@ class ModifyFunctionalGroup:
                 result[fg_name] = central_atoms
                 
         return result
+    
+    def functional_group_add_sites(self, mol: Union[Chem.Mol, Chem.RWMol], fg_name: str) -> List[int]:
+        """
+        Identify all possible attachment sites for a functional group.
+        
+        Args:
+            mol (Chem.Mol): Input molecule
+            fg_name (str): Name of functional group
+            
+        Returns:
+            List of atom indices where the functional group can be attached
+        """
+        if not mol:
+            if self.log and self.logger:
+                self.logger.error("Invalid molecule provided")
+            return []
+            
+        if fg_name not in self.functional_groups:
+            if self.log and self.logger:
+                self.logger.error(f"Unknown functional group: {fg_name}")
+            return []
+        
+        # Convert to RWMol for editing
+        rwmol = Chem.RWMol(mol)
+        
+        # Get attachment site atoms
+        attachment_sites = []
+        for atom in rwmol.GetAtoms():
+            if atom.GetSymbol() in self.functional_groups[fg_name][1]:
+                attachment_sites.append(atom.GetIdx())
+        
+        return attachment_sites
 
     def add_functional_group(self, mol: Union[Chem.Mol, Chem.RWMol], fg_name: str, site_idx: int) -> Optional[str]:
         """
@@ -210,8 +244,8 @@ class ModifyFunctionalGroup:
                 'halogen': '[*:1]-Cl',  # Example with Cl
                 'azide': '[*:1]-N=[N+]=[N-]',
                 'sulfonamide': '[*:1]-S(=O)(=O)N',
-                'sulfone': '[*:1]-S(=O)(=O)-[#6]',
-                'phosphate': '[*:1]-P(=O)(O)O'
+                # 'sulfone': '[*:1]-S(=O)(=O)-[#6]',
+                # 'phosphate': '[*:1]-P(=O)(O)O'
             }
             
             # Get mapped SMILES for the functional group
