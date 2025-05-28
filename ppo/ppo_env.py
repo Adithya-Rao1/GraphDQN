@@ -9,15 +9,21 @@ from mol_graph import GraphDataset
 import ppo_hyperparams as hp
 import rdkit
 from rdkit import Chem
+from ADMET.model import ADMETModel
+from binding_module.binding_affinity.plapt import Plapt, run_predictions
+from binding_module.selectivity.compare import compare_affinities
+from synthetic_accessibility.sa_score import SyntheticAccessibility
 
 # OBSERVATIONS = [PYG OBJECT]
 
 class MoleculeEnv:
-    def __init__(self):
+    def __init__(self, target_seq, off_target_seq):
         super(MoleculeEnv, self).__init__()
         self.mol_logger = setup_molecule_logger()
         self.action_space = spaces.Discrete(len(self.actions))
         self.current_mol = None
+        self.target_seq = target_seq
+        self.off_target_seq = off_target_seq
 
     def reset(self):
         self.current_mol = self.sample_initial_molecule()
@@ -112,15 +118,71 @@ class MoleculeEnv:
             ('amide', 'carboxyl'),
         ]
 
-        for fg1, fg2 in modify_mappings:
+        for fg_pair in modify_mappings:
             actions.add(
-                modify_func.modify_functional_group(mol, fg1, fg2)
+                modify_func.modify_functional_group(mol, fg_pair[0], fg_pair[1])
             )
 
         return {GraphDataset.graph_to_pyg(GraphDataset.mol_to_graph(smiles)) for smiles in actions if smiles}
 
-    def apply_action(self, mol, action_idx):
-        pass
+    def reward(self, mol):
+        smiles = [Chem.MolToSmiles(m) for m in [mol]]
+
+        admet_properties = ['QED',
+                            'Lipinski',
+                            'Bioavailability_Ma',
+                            'BBB_Martins',
+                            'DILI',
+                            'Clearance_Hepatocyte_AZ',
+                            'Clearance_Microsome_AZ',
+                            'Half_Life_Obach',
+                            'hERG',
+                            'ClinTox',
+                            'LD50_Zhu']
+        admet_optim_directions = [1, 1, 1, 1, -1, 1, 1, 1, -1, -1, -1]
+
+        admet_model = ADMETModel()
+        binding_aff_model = Plapt()
+        sa_model = SyntheticAccessibility()
+
+        # ADMET Predictions
+        admet_preds = admet_model.predict(smiles)
+        admet_rewards = []
+        all_admet_values = []
+
+        for i in range(len(admet_preds)):
+            admet_values = [admet_preds.iloc[i][prop] for prop in admet_properties]
+            all_admet_values.append(admet_values)  # Store all ADMET values for obj_vector
+
+            admet_reward = sum(
+                admet_values[j] if admet_optim_directions[j] == 1 else (1 / admet_values[j])
+                for j in range(len(admet_properties))
+            )
+            admet_rewards.append(admet_reward)
+
+        # Binding Affinity Predictions
+        binding_aff_preds = run_predictions(binding_aff_model, self.target_seq, smiles)
+        
+        if self.off_target_seq:
+            binding_off_target_preds = run_predictions(binding_aff_model, self.off_target_seq, smiles)    
+            selectivity_values = compare_affinities(binding_aff_preds, binding_off_target_preds)
+
+        # Synthetic Accessibility Scores
+        sa_preds = sa_model.processSMILES(smiles)
+
+        if self.off_target_seq:
+            final_rewards = [
+                admet + (1 / binding_aff) + selectivity + (1 / sa)
+                for admet, binding_aff, selectivity, sa in zip(admet_rewards, binding_aff_preds, selectivity_values, sa_preds)
+            ]
+            
+        else:
+            final_rewards = [
+                admet + (1 / binding_aff) + (1 / sa)
+                for admet, binding_aff, sa in zip(admet_rewards, binding_aff_preds, sa_preds)
+            ]
+
+        return final_rewards
 
 
 """
