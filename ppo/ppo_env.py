@@ -17,13 +17,16 @@ from synthetic_accessibility.sa_score import SyntheticAccessibility
 # OBSERVATIONS = [PYG OBJECT]
 
 class MoleculeEnv:
-    def __init__(self, target_seq, off_target_seq):
+    def __init__(self, target_seq, off_target_seq=None):
         super(MoleculeEnv, self).__init__()
         self.mol_logger = setup_molecule_logger()
         self.action_space = spaces.Discrete(len(self.actions))
         self.current_mol = None
         self.target_seq = target_seq
         self.off_target_seq = off_target_seq
+        self.admet_model = ADMETModel()
+        self.binding_aff_model = Plapt()
+        self.sa_model = SyntheticAccessibility()
 
     def reset(self):
         self.current_mol = self.sample_initial_molecule()
@@ -125,7 +128,7 @@ class MoleculeEnv:
 
         return {GraphDataset.graph_to_pyg(GraphDataset.mol_to_graph(smiles)) for smiles in actions if smiles}
 
-    def reward(self, mol):
+    def reward(self, mol, weights):
         smiles = [Chem.MolToSmiles(m) for m in [mol]]
 
         admet_properties = ['QED',
@@ -141,12 +144,8 @@ class MoleculeEnv:
                             'LD50_Zhu']
         admet_optim_directions = [1, 1, 1, 1, -1, 1, 1, 1, -1, -1, -1]
 
-        admet_model = ADMETModel()
-        binding_aff_model = Plapt()
-        sa_model = SyntheticAccessibility()
-
         # ADMET Predictions
-        admet_preds = admet_model.predict(smiles)
+        admet_preds = self.admet_model.predict(smiles)
         admet_rewards = []
         all_admet_values = []
 
@@ -161,26 +160,37 @@ class MoleculeEnv:
             admet_rewards.append(admet_reward)
 
         # Binding Affinity Predictions
-        binding_aff_preds = run_predictions(binding_aff_model, self.target_seq, smiles)
+        binding_aff_preds = run_predictions(self.binding_aff_model, self.target_seq, smiles)
         
         if self.off_target_seq:
-            binding_off_target_preds = run_predictions(binding_aff_model, self.off_target_seq, smiles)    
+            binding_off_target_preds = run_predictions(self.binding_aff_model, self.off_target_seq, smiles)    
             selectivity_values = compare_affinities(binding_aff_preds, binding_off_target_preds)
 
         # Synthetic Accessibility Scores
-        sa_preds = sa_model.processSMILES(smiles)
+        sa_preds = self.sa_model.processSMILES(smiles)
 
         if self.off_target_seq:
-            final_rewards = [
-                admet + (1 / binding_aff) + selectivity + (1 / sa)
-                for admet, binding_aff, selectivity, sa in zip(admet_rewards, binding_aff_preds, selectivity_values, sa_preds)
-            ]
-            
+            if weights:
+                final_rewards = [
+                    weights[0]*admet + weights[1]*(1 / binding_aff) + weights[2]*selectivity + weights[3]*(1 / sa)
+                    for admet, binding_aff, selectivity, sa in zip(admet_rewards, binding_aff_preds, selectivity_values, sa_preds)
+                ]
+            else:
+                final_rewards = [
+                    admet + (1 / binding_aff) + selectivity + (1 / sa)
+                    for admet, binding_aff, selectivity, sa in zip(admet_rewards, binding_aff_preds, selectivity_values, sa_preds)
+                ]
         else:
-            final_rewards = [
+            if weights:
+                final_rewards = [
+                    weights[0]*admet + weights[1]*(1 / binding_aff) + weights[2]*(1 / sa)
+                    for admet, binding_aff, sa in zip(admet_rewards, binding_aff_preds, sa_preds)
+                ]
+            else:
+                final_rewards = [
                 admet + (1 / binding_aff) + (1 / sa)
                 for admet, binding_aff, sa in zip(admet_rewards, binding_aff_preds, sa_preds)
-            ]
+                ]
 
         return final_rewards
 
