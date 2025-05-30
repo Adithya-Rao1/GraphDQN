@@ -7,3 +7,4 @@ venv/
 .env.*
 .graphdqn/
 graphdqn/
+daily_goals.txt
