@@ -10,3 +10,5 @@ import torch
 a = torch.randn(1,3)
 print(a)
 print(torch.flip(a, (1,)))
+
+print(1-False)

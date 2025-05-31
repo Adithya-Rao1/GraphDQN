@@ -2,13 +2,14 @@ import argparse
 
 hp = argparse.Namespace()
 hp.base_mols = {'C', 'O'}
-hp.steps_per_episode = 100
-hp.num_episodes = 500
-
-
-def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--steps_per_episode', type=int, default=hp.steps_per_episode)
-    parser.add_argument('--num_episodes', type=int, default=hp.num_episodes)
-    args = parser.parse_args()
-    return args
+hp.num_episodes = 100
+hp.steps_per_episode = 20
+hp.num_iterations = 1000
+hp.num_epochs = 10
+hp.rollout_length = 2000
+hp.batch_size = 32
+hp.gamma = 0.99
+hp.lambda_ = 0.95
+hp.epsilon = 0.2
+hp.c1 = 0.5
+hp.c2 = 0.01

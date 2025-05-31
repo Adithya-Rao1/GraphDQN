@@ -29,10 +29,17 @@ class MoleculeEnv:
         self.binding_aff_model = Plapt()
         self.sa_model = SyntheticAccessibility()
         self.step_count = 0
+        self.current_step = 0
+        self.current_reward = 0
+        self.done = False
+        self.episode = 0
 
     def reset(self):
         self.current_mol = self.sample_initial_molecule()
-        self.step_count = 0
+        self.current_step = 0
+        self.current_reward = 0
+        self.done = False
+
         return self.current_mol
 
     def sample_initial_molecule(self):
@@ -59,6 +66,7 @@ class MoleculeEnv:
 
         # Check if done
         done = self.step_count >= hp.steps_per_episode
+        self.done = done
 
         # Info --> Add for logging/metrics
         info = {

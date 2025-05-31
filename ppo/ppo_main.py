@@ -13,7 +13,6 @@ class PPO:
         self.actor = Actor(state_dim, action_dim, max_action)
         self.critic = Critic(state_dim)
         self.env = MoleculeEnv("placeholder_target_seq")
-        self.memory = PPOMemory()
 
     def calculate_returns(self, rewards:torch.tensor, gamma:float) -> torch.tensor:
         """
@@ -51,6 +50,49 @@ class PPO:
 
         return advantages
     
+    def calculate_gae(self, rewards: torch.tensor, gamma: float, values: torch.tensor, dones: torch.tensor, lambda_: float):
+        """
+        Calculates the generalized advantage estimation
+
+        Args:
+            - rewards: batch of rewards for each time step in trajectory (1D vector --> sequence of rewards over episode)
+            - gamma: discount factor (scalar)
+            - values: batch of values for each time step in trajectory (1D vector --> sequence of values over episode)
+            - dones: batch of dones for each time step in trajectory (1D vector --> sequence of dones over episode)
+            - lambda_: GAE hyperparameter (scalar)
+
+        Returns:    
+            - advantages: batch of advantages for each time step in trajectory (1D vector --> sequence of advantages over episode)  
+
+        Formula:
+        delta_t = r_t + gamma*V_(t+1) - V_(t)
+        GAE_t = delta_t + gamma*lambda*GAE_(t+1)
+        """
+
+        advantages = []
+        advantage_ = 0
+
+        for t in reversed(range(len(rewards))):
+            delta = rewards[t] + gamma * values[t+1] * (1 - dones[t]) - values[t]
+            advantage_ = delta + gamma * lambda_ * (1-dones[t]) * advantage_
+            advantages.insert(0, advantage_)
+
+        return advantages
+    
+    def get_returns(self, advantages: torch.tensor, values: torch.tensor):
+        """
+        Args:
+            - advantages: batch of advantages for each time step in trajectory (1D vector --> sequence of advantages over episode)
+            - values: batch of values for each time step in trajectory (1D vector --> sequence of values over episode)
+
+        Returns:
+            - returns: batch of returns for each time step in trajectory (1D vector --> sequence of returns over episode)
+        """
+
+        returns = advantages + values
+
+        return returns
+
     def get_action(self, obs):
         """
         Queries an action from the actor network, should be called from rollout.
@@ -70,7 +112,16 @@ class PPO:
 
         log_prob = dist.log_prob(action)
 
-        return action.detach().numpy(), log_prob.detach()
+        return action, log_prob
+    
+    def evaluate(self, obs, actions):
+        values = self.critic(obs)
+
+        mean = self.actor(obs)
+        dist = Categorical(logits=mean)
+        log_probs = dist.log_prob(actions)
+
+        return values, log_probs
     
     def rollot(self):
         """
@@ -85,11 +136,8 @@ class PPO:
 
         obs, reward, done, info = self.env.step(init_action)  
 
-        self.memory.add_memory(init_action, init_obs, init_logprob, reward, init_value, done) 
-
-    def learn(self):
-        pass
-
+        return init_action, init_obs, init_logprob, init_value, reward, done 
+    
 class PPOMemory:
     def __init__(self):
         super(PPOMemory, self).__init__()
@@ -100,7 +148,7 @@ class PPOMemory:
         self.rewards = []
         self.values = []
         self.dones = []
-
+    
     def clear_memory(self):
         del self.actions[:]
         del self.states[:]
