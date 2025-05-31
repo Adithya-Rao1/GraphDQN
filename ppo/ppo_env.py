@@ -13,6 +13,7 @@ from ADMET.model import ADMETModel
 from binding_module.binding_affinity.plapt import Plapt, run_predictions
 from binding_module.selectivity.compare import compare_affinities
 from synthetic_accessibility.sa_score import SyntheticAccessibility
+import random
 
 # OBSERVATIONS = [PYG OBJECT]
 
@@ -27,10 +28,44 @@ class MoleculeEnv:
         self.admet_model = ADMETModel()
         self.binding_aff_model = Plapt()
         self.sa_model = SyntheticAccessibility()
+        self.step_count = 0
 
     def reset(self):
         self.current_mol = self.sample_initial_molecule()
-        return GraphDataset.graph_to_pyg(GraphDataset.mol_to_graph(self.current_mol))
+        self.step_count = 0
+        return self.current_mol
+
+    def sample_initial_molecule(self):
+        sample_mol = Chem.MolFromSmiles(hp.base_mols[random.randint(0, len(hp.base_mols) - 1)])
+        return sample_mol
+    
+    def step(self, action: int):
+        """
+        Step for the agent in the environment
+
+        Args:
+            action (int): action to take in the environment
+
+        Returns:
+            observation, reward, done, info
+        """
+        # Get observation
+        actions = self.get_actions(self.current_mol)
+        obs = actions[action]
+        self.current_mol = Chem.MolFromSmiles(GraphDataset.graph_to_mol(obs))
+
+        # Compute reward
+        reward = self.reward(self.current_mol)
+
+        # Check if done
+        done = self.step_count >= hp.steps_per_episode
+
+        # Info --> Add for logging/metrics
+        info = {
+            'smiles': Chem.MolToSmiles(obs),
+        }
+
+        return obs, reward, done, info
 
     def get_actions(self, state=None):
         modify_atom = ModifyAtom(self.mol_logger)
@@ -41,7 +76,11 @@ class MoleculeEnv:
         if state is None:
             return hp.base_mols
         
-        mol = Chem.MolFromSmiles(state)
+        if isinstance(state, str):
+            mol = Chem.MolFromSmiles(state)
+        else:
+            mol = state
+
         actions = set()
 
         # Atom actions
@@ -126,9 +165,9 @@ class MoleculeEnv:
                 modify_func.modify_functional_group(mol, fg_pair[0], fg_pair[1])
             )
 
-        return {GraphDataset.graph_to_pyg(GraphDataset.mol_to_graph(smiles)) for smiles in actions if smiles}
+        return {Chem.MolFromSmiles(smile) for smile in actions if smile}
 
-    def reward(self, mol, weights):
+    def reward(self, mol, weights=None):
         smiles = [Chem.MolToSmiles(m) for m in [mol]]
 
         admet_properties = ['QED',
@@ -193,29 +232,4 @@ class MoleculeEnv:
                 ]
 
         return final_rewards
-
-
-"""
-class MoleculeEnv:
-    def __init__(self, admet_model, binding_model):
-        self.admet_model = admet_model  # nn.Module
-        self.binding_model = binding_model  # nn.Module
-        self.current_mol = None
-        ...
-
-    def reset(self):
-        self.current_mol = sample_initial_molecule()
-        return featurize(self.current_mol)
-
-    def step(self, action):
-        new_mol = apply_action(self.current_mol, action)
-        reward = self.compute_reward(new_mol)
-        self.current_mol = new_mol
-        return featurize(new_mol), reward, done, {}
-
-    def compute_reward(self, mol):
-        admet_score = self.admet_model(mol)
-        binding_score = self.binding_model(mol)
-        return weighted_sum(admet_score, binding_score)
-"""
 
