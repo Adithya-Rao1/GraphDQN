@@ -143,6 +143,9 @@ class GraphDataset(Dataset):
         pyg_graph.edge_attr = torch.stack([att for attr in edge_attr for att in attr], dim=0)  # Edge features tensor
         
         return pyg_graph
+    
+    def mol_to_pyg(self, mol):
+        return self.graph_to_pyg(self.mol_to_graph(mol))
 
     def __len__(self):
         return len(self.data)

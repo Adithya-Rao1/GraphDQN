@@ -8,8 +8,6 @@ from arguments import parse_args
 
 """
 TODO:
-- Add logging
-- Add episode incrementing
 - Create different runs with different parameters
 - Change model architectures
 """
@@ -44,9 +42,8 @@ def train_ppo(num_iterations,
                 action, state, logprob, value, reward, done = model.rollout()
                 
                 env.current_reward = reward
-                env.current_step = step
                 env.step_count += 1
-                
+
                 if done:
                     env.episode += 1
                     env.reset()
@@ -60,8 +57,10 @@ def train_ppo(num_iterations,
 
             memory.add_memory(action, state, logprob, reward, value, done)
 
-            advantages = model.calculate_gae(rewards, gamma, values, dones, lambda_)
-            returns = model.get_returns(advantages, values)
+            advantages = (model.calculate_gae(rewards, gamma, values, dones, lambda_)).detach()
+            returns = (model.get_returns(advantages, values)).detach()
+
+            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-12)
 
             data = memory.get_memory()
             trainloader = DataLoader(data, batch_size=batch_size, shuffle=True)
@@ -71,24 +70,28 @@ def train_ppo(num_iterations,
                     states, actions, logprobs, returns, advantages = data_batch
 
                     V, curr_log_probs = model.evaluate(states, actions)
-                    ratios = torch.exp(curr_log_probs - logprobs)
+                    ratios = torch.exp(curr_log_probs - logprobs.detach())
 
                     surr1 = ratios * advantages
                     surr2 = torch.clamp(ratios, 1 - epsilon, 1 + epsilon) * advantages
 
                     policy_loss = -torch.min(surr1, surr2)
-                    critic_loss = nn.MSELoss(V, returns)
+                    critic_loss = nn.MSELoss()(V, returns)
 
-                    entropy = -torch.sum(curr_log_probs.exp() * curr_log_probs)
+                    # entropy = -torch.sum(curr_log_probs.exp() * curr_log_probs)
+                    dist = model.get_action_dist(states)
+                    entropy = dist.entropy().mean()
 
                     actor_loss = policy_loss + c1 * critic_loss - c2 * entropy
 
                     actor_optimizer.zero_grad()
                     critic_optimizer.zero_grad()
-                    actor_loss.backward()
+                    actor_loss.backward(retain_graph=True)
                     critic_loss.backward()
                     actor_optimizer.step()
                     critic_optimizer.step()
+            
+            memory.clear_memory()
 
 if __name__ == "__main__":
     args = parse_args()
@@ -99,7 +102,7 @@ if __name__ == "__main__":
     actor_optimizer = optim.Adam(model.actor.parameters(), lr=1e-4)
     critic_optimizer = optim.Adam(model.critic.parameters(), lr=1e-3)
 
-    trainloader = DataLoader(memory, batch_size=64, shuffle=True)
+    trainloader = DataLoader(memory.get_memory(), batch_size=64, shuffle=True)
 
     train_ppo(args.num_iterations,
               args.num_epochs, 

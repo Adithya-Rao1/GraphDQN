@@ -28,16 +28,19 @@ class MoleculeEnv:
         self.admet_model = ADMETModel()
         self.binding_aff_model = Plapt()
         self.sa_model = SyntheticAccessibility()
+        self.total_steps = 0
         self.step_count = 0
-        self.current_step = 0
         self.current_reward = 0
         self.done = False
         self.episode = 0
+        self.episode_reward = 0
+        self.episode_lengths = []
 
     def reset(self):
         self.current_mol = self.sample_initial_molecule()
-        self.current_step = 0
+        self.step_count = 0
         self.current_reward = 0
+        self.episode_reward = 0
         self.done = False
 
         return self.current_mol

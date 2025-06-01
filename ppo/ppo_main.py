@@ -123,7 +123,14 @@ class PPO:
 
         return values, log_probs
     
-    def rollot(self):
+    def get_action_dist(self, obs):
+        mean = self.actor(obs)
+
+        dist = Categorical(logits=mean)
+
+        return dist
+    
+    def rollout(self):
         """
         Init environment
         1. Get an observation, get an action, get a value, get a log prob
