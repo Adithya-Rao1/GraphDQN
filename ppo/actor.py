@@ -19,7 +19,7 @@ class Actor(nn.Module):
         - obs: pytorch_geometric object that represents the observed mol at a given timestep
 
     Returns:
-        - mu: mean of action distribution
+        - probability distribution over actions
     """
     def __init__(self, state_dim, action_dim, max_action):
         super(Actor, self).__init__()
