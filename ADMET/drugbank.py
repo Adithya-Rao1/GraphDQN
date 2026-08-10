@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from admet_info import get_admet_id_to_name
-from constants import (
+from ADMET.admet_info import get_admet_id_to_name
+from ADMET.constants import (
     DEFAULT_DRUGBANK_PATH,
     DRUGBANK_ATC_NAME_PREFIX,
     DRUGBANK_ATC_PREFIX,

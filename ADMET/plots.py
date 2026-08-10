@@ -9,7 +9,7 @@ import seaborn as sns
 from rdkit import Chem
 from rdkit.Chem.Draw.rdMolDraw2D import MolDraw2DSVG
 
-from Model_Library.ADMET.admet_info import (
+from ADMET.admet_info import (
     get_admet_id_to_units,
     get_admet_name_to_id,
 )

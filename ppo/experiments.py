@@ -1,147 +1,156 @@
+import os
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from ppo_main import PPO, PPOMemory
-from ppo_env import MoleculeEnv
-from arguments import parse_args
 from ray import tune
 from ray.tune.search.optuna import OptunaSearch
 import wandb
 
-model = PPO()
-memory = PPOMemory()
-env = MoleculeEnv()
+from ppo.ppo_agent import PPO, PPOMemory
 
-def init_wanbd(config):
-    run = wandb.init(
-        entity = "adithya_rao-private",
-        project = "MolGRL",
-        config=config
+def init_wandb(config):
+    return wandb.init(
+        entity=os.environ.get("WANDB_ENTITY"),
+        project=os.environ.get("WANDB_PROJECT", "graphdqn"),
+        config=config,
     )
 
-    return run
-
 def objective(config):
-    run = init_wanbd(config)
+    run = init_wandb(config)
+
+    model = PPO(
+        state_dim=config['state_dim'],
+        action_dim=config['action_dim'],
+        max_action=config['max_action'],
+        target_seq=config['target_seq'],
+        off_target_seq=config.get('off_target_seq'),
+    )
+    memory = PPOMemory()
+
     actor_optimizer = optim.Adam(model.actor.parameters(), lr=config['actor_lr'])
     critic_optimizer = optim.Adam(model.critic.parameters(), lr=config['critic_lr'])
 
     for iteration in range(config['num_iterations']):
-        env.reset()
+        episode_rewards = []
+        episode_reward = 0.0
 
-        while env.total_steps < config['rollout_length']:
-            reward_tracker = 0
+        for _ in range(config['rollout_length']):
+            action, state, logprob, value, reward, done = model.rollout()
+            memory.add_memory(action, state, logprob, reward, value, done)
 
-            for step in range(config['rollout_length']):
-                action, state, logprob, value, reward, done = model.rollout()
+            episode_reward += reward
+            if done:
+                episode_rewards.append(episode_reward)
+                episode_reward = 0.0
 
-                reward_tracker += reward
-                env.current_reward = reward
-                env.total_steps += 1
-                env.step_count += 1
+        actions, states, logprobs, rewards, values, dones = memory.get_memory()
+        values_for_gae = values + [model.bootstrap_value()]
 
-                memory.add_memory(action, state, logprob, reward, value, done)
+        advantages = model.calculate_gae(rewards, config['gamma'], values_for_gae, dones, config['lambda_']).detach()
+        returns = model.get_returns(advantages, torch.stack(values)).detach()
+        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-12)
 
-                if done:
-                    env.episode += 1
-                    env.episode_reward = reward_tracker/env.step_count
-                    env.episode_lengths.append(env.step_count)
-                    tune.report({'episode_reward': env.episode_reward})
-                    run.log({'episode_reward': env.episode_reward, 'episode_length': env.step_count})
-                    env.reset()
-            
-            data = [memory.get_memory()]
+        dataset = list(zip(torch.stack(states), torch.stack(actions), torch.stack(logprobs), returns, advantages))
+        trainloader = DataLoader(dataset, batch_size=config['batch_size'], shuffle=True)
 
-            advantages = model.calculate_gae(rewards=data[3], gamma=config['gamma'], values=data[4], dones=data[5], lambda_=config['lambda_'])
-            returns = model.get_returns(advantages, values=data[4])
+        for epoch in range(config['num_epochs']):
+            for batch_states, batch_actions, batch_logprobs, batch_returns, batch_advantages in trainloader:
+                V, curr_log_probs = model.evaluate(batch_states, batch_actions)
 
-            advantages = (advantages - advantages.mean())/(advantages.std() + 1e-12)
+                approx_kl = (batch_logprobs.detach() - curr_log_probs).mean().item()
+                ratios = torch.exp(curr_log_probs - batch_logprobs.detach())
+                clip_fraction = ((ratios > (1 + config['epsilon'])) | (ratios < (1 - config['epsilon']))).float().mean().item()
 
-            trainloader = DataLoader(data, batch_size=config['batch_size'], shuffle=True)
+                tune.report({'approx_kl': approx_kl, 'clip_fraction': clip_fraction})
+                run.log({'approx_kl': approx_kl, 'clip_fraction': clip_fraction})
 
-            for epoch in range(config['num_epochs']):
-                for data_batch in trainloader:
-                    states, actions, logprobs, returns, advantages = data_batch
+                surr1 = ratios * batch_advantages
+                surr2 = torch.clamp(ratios, 1 - config['epsilon'], 1 + config['epsilon']) * batch_advantages
 
-                    V, curr_log_probs = model.evaluate(states, actions)
+                policy_loss = -torch.min(surr1, surr2).mean()
+                critic_loss = nn.MSELoss()(V, batch_returns)
 
-                    approx_kl = (logprobs.detach() - curr_log_probs).mean().item()
-                    ratios = torch.exp(curr_log_probs - logprobs.detach())
-                    clip_fraction = (ratios > (1 + config['epsilon'])).float() | (ratios < (1 - config['epsilon'])).float()
-                    clip_fraction = clip_fraction.float().mean().item()
+                dist = model.get_action_dist(batch_states)
+                entropy = dist.entropy().mean()
 
-                    # if approx_kl > 1.5 * config['target_kl']:
-                    #     break
-                    
-                    tune.report({'approx_kl': approx_kl, 'clip_fraction': clip_fraction})
-                    run.log({'approx_kl': approx_kl, 'clip_fraction': clip_fraction})
+                actor_loss = policy_loss + config['c1'] * critic_loss - config['c2'] * entropy
 
-                    surr1 = ratios * advantages
-                    surr2 = torch.clamp(ratios, 1 - config['epsilon'], 1 + config['epsilon']) * advantages
+                actor_optimizer.zero_grad()
+                critic_optimizer.zero_grad()
+                actor_loss.backward(retain_graph=True)
+                critic_loss.backward()
+                actor_optimizer.step()
+                critic_optimizer.step()
 
-                    policy_loss = -torch.min(surr1, surr2)
-                    critic_loss = nn.MSELoss()(V, returns)
+        memory.clear_memory()
 
-                    # entropy = -torch.sum(curr_log_probs.exp() * curr_log_probs)
-                    dist = model.get_action_dist(states)
-                    entropy = dist.entropy().mean()
+        mean_episode_reward = sum(episode_rewards) / len(episode_rewards) if episode_rewards else 0.0
+        tune.report({'episode_reward': mean_episode_reward})
+        run.log({'episode_reward': mean_episode_reward})
 
-                    actor_loss = policy_loss + config['c1'] * critic_loss - config['c2'] * entropy
+    run.finish()
 
-                    actor_optimizer.zero_grad()
-                    critic_optimizer.zero_grad()
-                    actor_loss.backward(retain_graph=True)
-                    critic_loss.backward()
-                    actor_optimizer.step()
-                    critic_optimizer.step()
+def build_search_space(target_seq, off_target_seq=None, state_dim=None, action_dim=None, max_action=1.0):
+    if state_dim is None:
+        from ppo.mol_graph import GraphDataset
+        state_dim = GraphDataset().node_feature_dim
+    if action_dim is None:
+        import ppo.ppo_hyperparams as hp
+        action_dim = hp.max_actions
 
-            memory.clear_memory()
+    return {
+        'target_seq': target_seq,
+        'off_target_seq': off_target_seq,
+        'state_dim': state_dim,
+        'action_dim': action_dim,
+        'max_action': max_action,
+        'num_iterations': tune.grid_search([10, 25, 50]),
+        'rollout_length': tune.grid_search([2500, 5000, 10000]),
+        'batch_size': tune.grid_search([8, 16, 32, 64]),
+        'num_epochs': tune.grid_search([10, 25, 50]),
+        'gamma': tune.uniform(0.9, 0.999),
+        'lambda_': tune.uniform(0.9, 0.999),
+        'epsilon': tune.uniform(0.01, 0.5),
+        'c1': tune.uniform(0.01, 0.5),
+        'c2': tune.uniform(0.01, 0.5),
+        'actor_lr': tune.loguniform(1e-5, 1e-3),
+        'critic_lr': tune.loguniform(1e-5, 1e-3),
+    }
 
-"""
-Log uniform: Geometric series of values (0.001, 0.01, 0.1)
-Uniform: Arithmetic series of values (0.1, 0.2, 0.3)
-"""
-search_space = {
-    'num_iterations': tune.grid_search([10, 25, 50]),
-    'rollout_length': tune.grid_search([2500, 5000, 10000]),
-    'batch_size': tune.grid_search([8, 16, 32, 64]),
-    'num_epochs': tune.grid_search([10, 25, 50]),
-    'gamma': tune.uniform(0.9, 0.999),
-    'lambda_': tune.uniform(0.9, 0.999),
-    'epsilon': tune.uniform(0.01, 0.5),
-    'c1': tune.uniform(0.01, 0.5),
-    'c2': tune.uniform(0.01, 0.5),
-    'actor_lr': tune.loguniform(1e-5, 1e-3),
-    'critic_lr': tune.loguniform(1e-5, 1e-3)
-}
-alg = OptunaSearch(
-    mode='max',
-    metric='episode_reward'
-)
 
 def stop_fn(trial_id: str, result: dict) -> bool:
-    """
-    Reasons to stop the experiment:
-        1. KL > target_kl
-    """
-
+    """Stop a trial once its approx KL divergence exceeds the target -- signals the
+    policy update stepped too far for the current clip range."""
     target_kl = 0.01
-    return result['approx_kl'] > target_kl
-    
+    return result.get('approx_kl', 0.0) > target_kl
 
 
-tuner = tune.Tuner(
-    objective,
-    tune_config=tune.TuneConfig(
-        search_alg=alg
-    ),
-    run_config=tune.RunConfig(
-        name = "PPO_Reward_Based_Tuning",
-        stop = stop_fn
+def build_tuner(target_seq, off_target_seq=None):
+    search_space = build_search_space(target_seq, off_target_seq=off_target_seq)
+    alg = OptunaSearch(mode='max', metric='episode_reward')
+
+    return tune.Tuner(
+        objective,
+        param_space=search_space,
+        tune_config=tune.TuneConfig(search_alg=alg),
+        run_config=tune.RunConfig(
+            name="PPO_Reward_Based_Tuning",
+            stop=stop_fn,
+        ),
     )
-)
 
 
+if __name__ == "__main__":
+    import argparse
 
-    
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--target-seq', type=str, required=True)
+    parser.add_argument('--off-target-seq', type=str, default=None)
+    args = parser.parse_args()
+
+    tuner = build_tuner(args.target_seq, off_target_seq=args.off_target_seq)
+    results = tuner.fit()
+    best_result = results.get_best_result(metric='episode_reward', mode='max')
+    print(f"Best config: {best_result.config}")

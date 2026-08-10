@@ -4,9 +4,9 @@ from pathlib import Path
 import pandas as pd
 from tap import tapify
 
-from model import ADMETModel
-from constants import DEFAULT_DRUGBANK_PATH, DEFAULT_MODELS_DIR
-from dqn.utils import load_and_preprocess_data
+from ADMET.model import ADMETModel
+from ADMET.constants import DEFAULT_DRUGBANK_PATH, DEFAULT_MODELS_DIR
+from ADMET.utils import load_and_preprocess_data
 
 
 def admet_predict(

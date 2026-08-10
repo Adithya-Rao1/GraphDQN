@@ -1,3 +1,5 @@
+import os
+
 import torch
 from dqn.dqn_network import DKDQNAgent
 from dqn.dqn_env import MoleculeEnv, get_all_actions
@@ -8,8 +10,9 @@ import numpy as np
 from dqn.utils import create_graph, setup_dqn_logger
 import rdkit
 from rdkit import Chem
+from experiments.data.targets import TARGETS, DEFAULT_TARGET
 
-def run_dqn(log=False):
+def run_dqn(log=False, target_name=DEFAULT_TARGET, checkpoint_dir='./checkpoints/dqn', checkpoint_interval=100):
     num_episodes = 1000
     update_interval = 20
     batch_size = 20
@@ -17,7 +20,7 @@ def run_dqn(log=False):
     logger = setup_dqn_logger()
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    target_seq = 'MDVFMKGLSKAKEGVVAAAEKTKQGVAEAAGKTKEGVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKDQLGKNEEGAPQEGILEDMPVDPDNEAYEMPSEEGYQDYEPEA'
+    target_seq = TARGETS[target_name]
     off_target_seq = None
 
     environment = QEDEnv(
@@ -34,38 +37,18 @@ def run_dqn(log=False):
     )
 
     environment.initialize()
-    #print('environment valid actions: ', environment._valid_actions)
-
     eps_threshold = 0.8
     batch_losses = []
 
     for episode in range(num_episodes):
         all_actions = list(environment.get_valid_actions())
-        print("#"*100)
-        print('')
-        print()
-        print('all actions initial ', all_actions)
-        print('environment state before step ', environment._state)
-        
         obs = create_graph(all_actions) 
-
-        # print('observations in graphs: ', obs)
-
         chosen_act = agent.get_action(obs, eps_threshold)
-
         action_obs = all_actions[chosen_act]
-        print('action_obs', action_obs)
         result = environment.step(action_obs)
-
         _, reward, done = result
-        print('environment state after step ', environment._state)
+
         all_action_obs = list(environment.get_valid_actions())
-        print('all actions after step: ', all_action_obs)
-        print('reward ', reward)
-
-        if episode == 1:
-            break
-
         agent.replay_buffer.add(
             obs_t=action_obs,
             action=0,
@@ -73,8 +56,6 @@ def run_dqn(log=False):
             obs_tp1=all_action_obs,
             done=float(result.terminated)
         )
-
-        print('Agent replay buffer length: ', agent.replay_buffer.__len__())
 
         if done:
             final_reward = reward
@@ -94,6 +75,16 @@ def run_dqn(log=False):
                 loss = agent.update_params(batch_size, dqn_hyperparams.gamma, dqn_hyperparams.polyak)
                 loss = loss.item()
                 batch_losses.append(loss)
+
+        if checkpoint_dir and episode % checkpoint_interval == 0 and episode > 0:
+            os.makedirs(checkpoint_dir, exist_ok=True)
+            torch.save(agent.qn.state_dict(), os.path.join(checkpoint_dir, f"episode_{episode}.pt"))
+
+    if checkpoint_dir:
+        os.makedirs(checkpoint_dir, exist_ok=True)
+        torch.save(agent.qn.state_dict(), os.path.join(checkpoint_dir, "final.pt"))
+
+    return agent
 
 
 if __name__ == "__main__":

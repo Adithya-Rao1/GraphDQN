@@ -11,6 +11,7 @@ from ADMET.model import ADMETModel
 from binding_module.binding_affinity.plapt import Plapt, run_predictions
 from binding_module.selectivity.compare import compare_affinities
 from synthetic_accessibility.sa_score import SyntheticAccessibility
+from reward.multi_objective import ADMET_PROPERTIES, ADMET_OPTIM_DIRECTIONS, compute_admet_reward, compute_reward
 
 class QEDEnv(MoleculeEnv):
     def __init__(self, discount_factor, **kwargs):
@@ -78,35 +79,19 @@ class BindingEnv(MoleculeEnv):
         return (1/reward) * self.discount_factor ** (self.max_steps - self._counter)
 
 class ADMETEnv(MoleculeEnv):
-    def __init__(self, discount_factor, **kwargs):
+    def __init__(self, discount_factor, device, **kwargs):
         super(ADMETEnv, self).__init__(**kwargs)
         self.discount_factor = discount_factor
-    
+        self.device = device
+        self.admet_model = ADMETModel(self.device)
+
     def _reward(self):
         if self._state is None:
             return 0.0
-        
-        admet_properties = ['QED',
-                            'Lipinski',
-                            'Bioavailability_Ma',
-                            'BBB_Martins',
-                            'DILI',
-                            'Clearance_Hepatocyte_AZ',
-                            'Clearance_Microsome_AZ',
-                            'Half_Life_Obach',
-                            'hERG',
-                            'ClinTox',
-                            'LD50_Zhu']
-        
-        admet_optim_directions = [1, 1, 1, 1, -1, 1, 1, 1, -1, -1, -1]
-        admet_preds = ADMETModel().predict(self._state)
-        admet_values = [admet_preds[prop] for prop in admet_properties]
 
-        reward = sum(
-                admet_values[j] if admet_optim_directions[j] == 1 else (1 / admet_values[j])
-                for j in range(len(admet_properties))
-            )
-        
+        admet_preds = self.admet_model.predict(self._state)
+        reward = compute_admet_reward(admet_preds)
+
         return reward * self.discount_factor ** (self.max_steps - self._counter)
 
 class MultiObjectiveRewardEnv(MoleculeEnv):
@@ -114,52 +99,34 @@ class MultiObjectiveRewardEnv(MoleculeEnv):
         super(MultiObjectiveRewardEnv, self).__init__(**kwargs)
         self.discount_factor = discount_factor
         self.device = device
-    
+
+        self.admet_model = ADMETModel(self.device)
+        self.binding_model = Plapt(device=str(self.device))
+        self.sa_model = SyntheticAccessibility()
+
     def _reward(self):
         if self._state is None:
             return 0.0
-        
+
         mol = Chem.MolFromSmiles(self._state)
         if mol is None:
             return 0.0
-        
-        admet_properties = ['QED',
-                            'Lipinski',
-                            'Bioavailability_Ma',
-                            'BBB_Martins',
-                            'DILI',
-                            'Clearance_Hepatocyte_AZ',
-                            'Clearance_Microsome_AZ',
-                            'Half_Life_Obach',
-                            'hERG',
-                            'ClinTox',
-                            'LD50_Zhu']
-        
-        admet_optim_directions = [1, 1, 1, 1, -1, 1, 1, 1, -1, -1, -1]
-        admet_preds = ADMETModel(self.device).predict(self._state)
-        admet_values = [admet_preds[prop] for prop in admet_properties]
 
-        admet_reward = sum(
-                admet_values[j] if admet_optim_directions[j] == 1 else (1 / admet_values[j])
-                for j in range(len(admet_properties))
-            )
-        binding_reward = run_predictions(Plapt(), self.target_seq, [self._state])[0]
-        sa_reward = SyntheticAccessibility().calculateScore(mol)
-        if self.off_target_seq:
-            off_target_pred = run_predictions(Plapt(), self.off_target_seq, [self._state])[0]
-            selectivity_reward = compare_affinities(binding_reward, off_target_pred)
-            scale_weights = hyp.selectivity_weight/3
+        result = compute_reward(
+            smiles=self._state,
+            target_seq=self.target_seq,
+            device=self.device,
+            off_target_seq=self.off_target_seq,
+            admet_weight=hyp.admet_weight,
+            binding_weight=hyp.binding_weight,
+            synthetic_weight=hyp.synthetic_weight,
+            selectivity_weight=hyp.selectivity_weight,
+            admet_model=self.admet_model,
+            binding_model=self.binding_model,
+            sa_model=self.sa_model,
+        )
 
-            reward = ((hyp.admet_weight - scale_weights)*admet_reward + 
-            (hyp.binding_weight - scale_weights)*(1/binding_reward) + 
-            (hyp.selectivity_weight - scale_weights)*(1/sa_reward) + 
-            hyp.selectivity_weight*selectivity_reward)
-        
-        reward = (hyp.admet_weight*admet_reward + 
-                  hyp.binding_weight*(1/binding_reward) + 
-                  hyp.synthetic_weight*(1/sa_reward))
-
-        return reward * self.discount_factor ** (self.max_steps - self._counter)
+        return result["reward"] * self.discount_factor ** (self.max_steps - self._counter)
 
 class LogPConstrainedEnv(MoleculeEnv):
     def __init__(self, target_molecule, discount_factor, **kwargs):

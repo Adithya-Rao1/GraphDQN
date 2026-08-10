@@ -5,11 +5,10 @@ from typing import List, Dict, Tuple, Optional, Union, Set
 from rdkit import Chem
 from rdkit.Chem import AllChem
 
-# NEED TO ADD ALL POSSIBLE BONDING SITES FOR EACH FG
+# TODO: INCREASE SET OF POSSIBLE BONDING SITES FOR EACH FG
 
-# Constants for functional groups
 FUNCTIONAL_GROUPS = {
-    # Format: name: (SMARTS pattern, possible atoms/groups to bond to)
+    # Format -- name: (SMARTS pattern, possible atoms/groups to bond to)
     'methyl': ('[CH3]', ['C', 'N', 'S', 'O']),
     'hydroxyl': ('[OH]', 1),
     'amino': ('[NH2]', 1),
@@ -37,7 +36,6 @@ FUNCTIONAL_GROUPS = {
     'methylenedioxy': ('[O][C]([#6])[O]', 1)
 }
 
-# Properties for functional groups that affect reactivity and compatibility
 FG_PROPERTIES = {
     'methyl': {'electron_donating': True, 'hydrophobic': True, 'acidic': False},
     'hydroxyl': {'electron_donating': True, 'hydrophilic': True, 'acidic': True},
@@ -66,8 +64,7 @@ FG_PROPERTIES = {
     'methylenedioxy': {'electron_donating': True, 'hydrophobic': True}
 }
 
-# Compatibility matrix for functional groups (whether they can exist in same molecule)
-# 0: Incompatible, 1: May cause issues/need protection, 2: Compatible
+# 0: Incompatible, 1: Possible issues, 2: Compatible
 FG_COMPATIBILITY = {
     'hydroxyl': {'carboxyl': 1, 'carbonyl': 1, 'aldehyde': 1, 'ester': 1, 'isocyanate': 0},
     'amino': {'carboxyl': 1, 'carbonyl': 1, 'aldehyde': 1, 'ketone': 1, 'ester': 1, 'isocyanate': 0},
@@ -77,7 +74,6 @@ FG_COMPATIBILITY = {
     'isocyanate': {'hydroxyl': 0, 'amino': 0, 'carboxyl': 0, 'thiol': 0, 'water': 0}
 }
 
-# Modification outcomes (for chemical validity checking)
 REACTION_OUTCOMES = {
     ('hydroxyl', 'carboxyl'): 'ester_formation',
     ('amino', 'carboxyl'): 'amide_formation',
@@ -91,37 +87,18 @@ class ModifyFunctionalGroup:
                  functional_groups: Optional[Dict[str, Tuple[str, int]]] = None,
                  modification_strategy: str = 'balanced',
                  log: bool = False):
-        """
-        Initialize the ModifyFunctionalGroup class with functional groups and strategies.
-        
-        Args:
-            functional_groups (Dict, optional): Dictionary of functional groups, their SMARTS patterns and valence requirements
-            modification_strategy (str): Modification approach ('balanced', 'drug-like', 'diversity')
-            log (bool): Whether to log operations
-        """
         self.logger = logger
         self.log = log
         
-        # Use provided functional groups or defaults
         self.functional_groups = functional_groups or FUNCTIONAL_GROUPS
         self.modification_strategy = modification_strategy
         
-        # Prioritize functional groups based on drug-like properties
         self.drug_like_priority = [
             'carboxyl', 'amino', 'amide', 'sulfonamide', 'hydroxyl',
             'methyl', 'halogen', 'ether', 'ketone', 'cyano'
         ]
 
     def identify_functional_groups(self, mol: Chem.Mol) -> Dict[str, List[int]]:
-        """
-        Identify all functional groups in a molecule.
-        
-        Args:
-            mol (Chem.Mol): Input molecule
-            
-        Returns:
-            Dictionary mapping functional group names to lists of atom indices
-        """
         if not mol:
             if self.log and self.logger:
                 self.logger.error("Invalid molecule provided")
@@ -129,7 +106,6 @@ class ModifyFunctionalGroup:
             
         result = {}
         
-        # Search for each functional group pattern
         for fg_name, (smarts, _) in self.functional_groups.items():
             pattern = Chem.MolFromSmarts(smarts)
             if not pattern:
@@ -139,11 +115,8 @@ class ModifyFunctionalGroup:
                 
             matches = mol.GetSubstructMatches(pattern)
             if matches:
-                # Store the central atom of each functional group match
                 central_atoms = []
                 for match in matches:
-                    # For most groups, take the first atom as central
-                    # For complex groups, might need special handling
                     central_atoms.append(match[0])
                 
                 result[fg_name] = central_atoms
@@ -151,16 +124,6 @@ class ModifyFunctionalGroup:
         return result
     
     def functional_group_add_sites(self, mol: Union[Chem.Mol, Chem.RWMol], fg_name: str) -> List[int]:
-        """
-        Identify all possible attachment sites for a functional group.
-        
-        Args:
-            mol (Chem.Mol): Input molecule
-            fg_name (str): Name of functional group
-            
-        Returns:
-            List of atom indices where the functional group can be attached
-        """
         if not mol:
             if self.log and self.logger:
                 self.logger.error("Invalid molecule provided")
@@ -171,10 +134,7 @@ class ModifyFunctionalGroup:
                 self.logger.error(f"Unknown functional group: {fg_name}")
             return []
         
-        # Convert to RWMol for editing
         rwmol = Chem.RWMol(mol)
-        
-        # Get attachment site atoms
         attachment_sites = []
         for atom in rwmol.GetAtoms():
             if atom.GetSymbol() in self.functional_groups[fg_name][1]:
@@ -183,17 +143,6 @@ class ModifyFunctionalGroup:
         return attachment_sites
 
     def add_functional_group(self, mol: Union[Chem.Mol, Chem.RWMol], fg_name: str, site_idx: int) -> Optional[str]:
-        """
-        Add a functional group to a molecule at a specific site.
-        
-        Args:
-            mol (Chem.Mol): Input molecule
-            fg_name (str): Name of functional group to add
-            site_idx (int): Atom index where to attach the functional group
-            
-        Returns:
-            SMILES string of modified molecule or None if unsuccessful
-        """
         if not mol:
             if self.log and self.logger:
                 self.logger.error("Invalid molecule provided")
@@ -204,15 +153,12 @@ class ModifyFunctionalGroup:
                 self.logger.error(f"Unknown functional group: {fg_name}")
             return None
         
-        # Convert to RWMol for editing
         rwmol = Chem.RWMol(mol)
         
         try:
-            # Get attachment site atom
             site_atom = rwmol.GetAtomWithIdx(site_idx)
             site_symbol = site_atom.GetSymbol()
             
-            # Check atom valence to ensure it can accommodate the functional group
             current_valence = site_atom.GetExplicitValence() + site_atom.GetImplicitValence()
             available_valence = site_atom.GetTotalValence() - current_valence
             valence_required = self.functional_groups[fg_name][1]
@@ -222,11 +168,9 @@ class ModifyFunctionalGroup:
                     self.logger.error(f"Insufficient valence at site {site_idx} for {fg_name}")
                 return Chem.MolToSmiles(mol)
             
-            # Prepare the functional group fragment
             fg_smarts = self.functional_groups[fg_name][0]
             fg_mol = None
             
-            # Map functional group to an actual fragment
             fg_mapping = {
                 'methyl': '[*:1]-[CH3]',
                 'hydroxyl': '[*:1]-[OH]',
@@ -241,26 +185,21 @@ class ModifyFunctionalGroup:
                 'nitro': '[*:1]-[N+](=O)[O-]',
                 'cyano': '[*:1]-C#N',
                 'thiol': '[*:1]-[SH]',
-                'halogen': '[*:1]-Cl',  # Example with Cl
+                'halogen': '[*:1]-Cl', 
                 'azide': '[*:1]-N=[N+]=[N-]',
                 'sulfonamide': '[*:1]-S(=O)(=O)N',
-                # 'sulfone': '[*:1]-S(=O)(=O)-[#6]',
-                # 'phosphate': '[*:1]-P(=O)(O)O'
+                'sulfone': '[*:1]-S(=O)(=O)-[#6]',
+                'phosphate': '[*:1]-P(=O)(O)O'
             }
             
-            # Get mapped SMILES for the functional group
             if fg_name in fg_mapping:
                 rxn_smarts = fg_mapping[fg_name]
-                # Create reaction to add functional group
                 rxn = AllChem.ReactionFromSmarts(f"[*:2][{site_symbol}:1]>>[{site_symbol}:1]{rxn_smarts.replace('[*:1]', '')}")
-                
-                # Apply reaction
                 products = rxn.RunReactants((rwmol,))
                 
                 if products and len(products) > 0 and len(products[0]) > 0:
                     modified_mol = products[0][0]
                     
-                    # Sanitize and check validity
                     try:
                         Chem.SanitizeMol(modified_mol)
                         Chem.AssignStereochemistry(modified_mol, cleanIt=True, force=True)
@@ -286,17 +225,6 @@ class ModifyFunctionalGroup:
             return Chem.MolToSmiles(mol)
             
     def remove_functional_group(self, mol: Union[Chem.Mol, Chem.RWMol], fg_name: str, instance_idx: int = 0) -> Optional[str]:
-        """
-        Remove a specific functional group instance from a molecule.
-        
-        Args:
-            mol (Chem.Mol): Input molecule
-            fg_name (str): Name of functional group to remove
-            instance_idx (int): Which instance of the functional group to remove (if multiple)
-            
-        Returns:
-            SMILES string of modified molecule or None if unsuccessful
-        """
         if not mol:
             if self.log and self.logger:
                 self.logger.error("Invalid molecule provided")
@@ -307,7 +235,6 @@ class ModifyFunctionalGroup:
                 self.logger.error(f"Unknown functional group: {fg_name}")
             return None
         
-        # Identify functional groups
         fg_matches = self.identify_functional_groups(mol)
         
         if fg_name not in fg_matches or instance_idx >= len(fg_matches[fg_name]):
@@ -315,14 +242,11 @@ class ModifyFunctionalGroup:
                 self.logger.error(f"Functional group {fg_name} instance {instance_idx} not found")
             return Chem.MolToSmiles(mol)
         
-        # Get the central atom of the functional group to remove
         fg_central_atom = fg_matches[fg_name][instance_idx]
-        
-        # Different removal strategies based on functional group type
+
         rwmol = Chem.RWMol(mol)
         
         try:
-            # Simple removal strategies for common groups
             removal_mapping = {
                 'methyl': self._remove_simple_group,
                 'hydroxyl': self._remove_simple_group,
@@ -342,11 +266,9 @@ class ModifyFunctionalGroup:
                 'sulfonamide': self._remove_complex_group
             }
             
-            # Call appropriate removal function or use default
             if fg_name in removal_mapping:
                 modified_smiles = removal_mapping[fg_name](rwmol, fg_name, fg_central_atom)
             else:
-                # Default to hydrogen replacement
                 modified_smiles = self._remove_and_add_hydrogen(rwmol, fg_central_atom)
                 
             if self.log and self.logger and modified_smiles != Chem.MolToSmiles(mol):
@@ -360,26 +282,12 @@ class ModifyFunctionalGroup:
             return Chem.MolToSmiles(mol)
     
     def _remove_simple_group(self, rwmol: Chem.RWMol, fg_name: str, atom_idx: int) -> str:
-        """
-        Remove a simple pendant functional group and replace with hydrogen.
-        
-        Args:
-            rwmol (Chem.RWMol): Working molecule
-            fg_name (str): Functional group name
-            atom_idx (int): Central atom index
-            
-        Returns:
-            SMILES of modified molecule
-        """
-        # Create template reaction for replacing with hydrogen
         smarts = self.functional_groups[fg_name][0]
         atom = rwmol.GetAtomWithIdx(atom_idx)
         
-        # For simple groups, use SMARTS to identify all atoms in the group
         pattern = Chem.MolFromSmarts(smarts)
         matches = rwmol.GetSubstructMatches(pattern)
         
-        # Find match that includes our target atom
         target_match = None
         for match in matches:
             if atom_idx in match:
@@ -389,12 +297,10 @@ class ModifyFunctionalGroup:
         if target_match is None:
             return Chem.MolToSmiles(rwmol)
             
-        # Convert to hydrogen replacement reaction
         mol_with_map = Chem.RWMol(rwmol)
         for i, idx in enumerate(target_match):
             mol_with_map.GetAtomWithIdx(idx).SetProp("molAtomMapNumber", str(i+1))
         
-        # Find attachment atom (the one connected to the rest of the molecule)
         attachment_idx = None
         for idx in target_match:
             atom = mol_with_map.GetAtomWithIdx(idx)
@@ -408,10 +314,7 @@ class ModifyFunctionalGroup:
         if attachment_idx is None:
             return Chem.MolToSmiles(rwmol)
         
-        # Convert to reactant SMILES with atom mapping
         reactant_smiles = Chem.MolToSmiles(mol_with_map)
-        
-        # Create replacement reaction
         rxn = AllChem.ReactionFromSmarts(f"{reactant_smiles}>>[*:1][H]")
         products = rxn.RunReactants((rwmol,))
         
@@ -427,18 +330,6 @@ class ModifyFunctionalGroup:
             return self._remove_and_add_hydrogen(rwmol, atom_idx)
     
     def _remove_complex_group(self, rwmol: Chem.RWMol, fg_name: str, atom_idx: int) -> str:
-        """
-        Remove a complex functional group using specific patterns.
-        
-        Args:
-            rwmol (Chem.RWMol): Working molecule
-            fg_name (str): Functional group name
-            atom_idx (int): Central atom index
-            
-        Returns:
-            SMILES of modified molecule
-        """
-        # Group-specific removal patterns
         removal_patterns = {
             'carboxyl': ['[C:1](=O)[OH]>>[*:1][H]', '[C](=O)[OH:1]>>[*:1][H]'],
             'carbonyl': ['[C:1]=O>>[*:1][H]', '[C]=O>>[H]'],
@@ -450,7 +341,6 @@ class ModifyFunctionalGroup:
         if fg_name not in removal_patterns:
             return self._remove_and_add_hydrogen(rwmol, atom_idx)
         
-        # Try each pattern
         for pattern in removal_patterns[fg_name]:
             rxn = AllChem.ReactionFromSmarts(pattern)
             products = rxn.RunReactants((rwmol,))
@@ -464,40 +354,23 @@ class ModifyFunctionalGroup:
                 except Exception:
                     continue
         
-        # Fallback to simple hydrogen replacement
         return self._remove_and_add_hydrogen(rwmol, atom_idx)
     
     def _remove_and_add_hydrogen(self, rwmol: Chem.RWMol, atom_idx: int) -> str:
-        """
-        Remove an atom and all its bonds, replacing with hydrogen.
-        
-        Args:
-            rwmol (Chem.RWMol): Working molecule
-            atom_idx (int): Atom to replace
-            
-        Returns:
-            SMILES of modified molecule
-        """
-        # Save original molecule in case operation fails
         original_mol = Chem.Mol(rwmol)
         
-        # Find attachment point
         atom = rwmol.GetAtomWithIdx(atom_idx)
         attachments = []
         
         for neighbor in atom.GetNeighbors():
             attachments.append(neighbor.GetIdx())
         
-        # For each attachment, replace with hydrogen
         for attach_idx in attachments:
-            # Create new atom with hydrogen
             h_atom = Chem.Atom('H')
             new_idx = rwmol.AddAtom(h_atom)
             
-            # Add bond to attachment point
             rwmol.AddBond(attach_idx, new_idx, Chem.BondType.SINGLE)
         
-        # Remove original atom
         try:
             rwmol.RemoveAtom(atom_idx)
             Chem.SanitizeMol(rwmol)
@@ -509,18 +382,6 @@ class ModifyFunctionalGroup:
     def modify_functional_group(self, mol: Union[Chem.Mol, Chem.RWMol], 
                                  source_fg: str, target_fg: str, 
                                  instance_idx: int = 0) -> Optional[str]:
-        """
-        Convert one functional group to another.
-        
-        Args:
-            mol (Chem.Mol): Input molecule
-            source_fg (str): Source functional group name
-            target_fg (str): Target functional group name
-            instance_idx (int): Which instance of source_fg to modify
-            
-        Returns:
-            SMILES string of modified molecule or None if unsuccessful
-        """
         if not mol:
             if self.log and self.logger:
                 self.logger.error("Invalid molecule provided")
@@ -531,7 +392,6 @@ class ModifyFunctionalGroup:
                 self.logger.error(f"Unknown functional group: {source_fg} or {target_fg}")
             return None
         
-        # Identify functional groups
         fg_matches = self.identify_functional_groups(mol)
         
         if source_fg not in fg_matches or instance_idx >= len(fg_matches[source_fg]):
@@ -539,19 +399,16 @@ class ModifyFunctionalGroup:
                 self.logger.error(f"Functional group {source_fg} instance {instance_idx} not found")
             return Chem.MolToSmiles(mol)
         
-        # Get central atom of source functional group
         source_atom_idx = fg_matches[source_fg][instance_idx]
         
-        # Check functional group compatibility
         compatibility = self._check_fg_compatibility(mol, source_fg, target_fg)
-        if compatibility == 0:  # Incompatible
+        if compatibility == 0:  
             if self.log and self.logger:
                 self.logger.error(f"Incompatible transformation: {source_fg} to {target_fg}")
             return Chem.MolToSmiles(mol)
         
-        # Define direct transformation patterns
         transform_mapping = {
-            # Format: (source, target): reaction SMARTS
+            # Format -- (source, target): reaction SMARTS
             ('hydroxyl', 'amino'): '[O:1][H]>>[N:1][H][H]',
             ('hydroxyl', 'thiol'): '[O:1][H]>>[S:1][H]',
             ('hydroxyl', 'methyl'): '[O:1][H]>>[C:1][H][H][H]',
@@ -572,7 +429,6 @@ class ModifyFunctionalGroup:
         
         key = (source_fg, target_fg)
         
-        # Try direct transformation first
         if key in transform_mapping:
             rxn_smarts = transform_mapping[key]
             rxn = AllChem.ReactionFromSmarts(rxn_smarts)
@@ -590,10 +446,8 @@ class ModifyFunctionalGroup:
                     if self.log and self.logger:
                         self.logger.error(f"Failed to sanitize after transformation: {str(e)}")
         
-        # If direct transformation failed or not defined, try remove-then-add approach
         rwmol = Chem.RWMol(mol)
         
-        # 1. Remove source functional group but remember attachment point
         attachment_idx = None
         source_atom = rwmol.GetAtomWithIdx(source_atom_idx)
         
@@ -607,7 +461,6 @@ class ModifyFunctionalGroup:
                 self.logger.error("Could not identify attachment point for functional group")
             return Chem.MolToSmiles(mol)
         
-        # Remove source functional group
         temp_mol = Chem.Mol(rwmol)
         removed_smiles = self.remove_functional_group(temp_mol, source_fg, instance_idx)
         if removed_smiles == Chem.MolToSmiles(mol):
@@ -615,12 +468,10 @@ class ModifyFunctionalGroup:
                 self.logger.error(f"Failed to remove {source_fg}")
             return Chem.MolToSmiles(mol)
             
-        # 2. Add target functional group at attachment point
         temp_mol = Chem.MolFromSmiles(removed_smiles)
         if not temp_mol:
             return Chem.MolToSmiles(mol)
             
-        # Find equivalent atom in new molecule
         atom_mapping = {}
         for idx in range(min(mol.GetNumAtoms(), temp_mol.GetNumAtoms())):
             if idx < mol.GetNumAtoms() and idx < temp_mol.GetNumAtoms():
@@ -629,7 +480,6 @@ class ModifyFunctionalGroup:
                 if atom1.GetSymbol() == atom2.GetSymbol():
                     atom_mapping[idx] = idx
         
-        # Find new attachment index
         new_attachment_idx = None
         for old_idx, new_idx in atom_mapping.items():
             if old_idx == attachment_idx:
@@ -641,7 +491,6 @@ class ModifyFunctionalGroup:
                 self.logger.error("Could not find equivalent attachment point in modified molecule")
             return Chem.MolToSmiles(mol)
             
-        # 3. Add target functional group at new attachment point
         final_smiles = self.add_functional_group(temp_mol, target_fg, new_attachment_idx)
         
         if final_smiles is None:
@@ -661,34 +510,19 @@ class ModifyFunctionalGroup:
             return Chem.MolToSmiles(mol)
     
     def _check_fg_compatibility(self, mol: Chem.Mol, source_fg: str, target_fg: str) -> int:
-        """
-        Check if functional group transformation is compatible.
-        
-        Args:
-            mol (Chem.Mol): Input molecule
-            source_fg (str): Source functional group
-            target_fg (str): Target functional group
-            
-        Returns:
-            int: 0 for incompatible, 1 for caution, 2 for compatible
-        """
-        # Default to compatible
         compatibility = 2
         
-        # Check direct compatibility from matrix
         if source_fg in FG_COMPATIBILITY and target_fg in FG_COMPATIBILITY[source_fg]:
             compatibility = min(compatibility, FG_COMPATIBILITY[source_fg][target_fg])
         elif target_fg in FG_COMPATIBILITY and source_fg in FG_COMPATIBILITY[target_fg]:
             compatibility = min(compatibility, FG_COMPATIBILITY[target_fg][source_fg])
             
-        # Check for other functional groups in the molecule that might cause issues
         fg_matches = self.identify_functional_groups(mol)
         
         for other_fg in fg_matches:
             if other_fg == source_fg:
                 continue
                 
-            # Check compatibility of target_fg with other groups
             if target_fg in FG_COMPATIBILITY and other_fg in FG_COMPATIBILITY[target_fg]:
                 compatibility = min(compatibility, FG_COMPATIBILITY[target_fg][other_fg])
             elif other_fg in FG_COMPATIBILITY and target_fg in FG_COMPATIBILITY[other_fg]:
@@ -699,17 +533,6 @@ class ModifyFunctionalGroup:
     def suggest_modifications(self, mol: Chem.Mol, 
                               target_property: str = None, 
                               num_suggestions: int = 3) -> List[Tuple[str, str, str]]:
-        """
-        Suggest functional group modifications to improve molecular properties.
-        
-        Args:
-            mol (Chem.Mol): Input molecule
-            target_property (str): Target property to improve ('solubility', 'stability', 'reactivity', etc.)
-            num_suggestions (int): Number of suggestions to return
-            
-        Returns:
-            List of tuples (modification_type, functional_group, rationale)
-        """
         if not mol:
             if self.log and self.logger:
                 self.logger.error("Invalid molecule provided")
@@ -717,15 +540,12 @@ class ModifyFunctionalGroup:
             
         suggestions = []
         
-        # Identify existing functional groups
         fg_matches = self.identify_functional_groups(mol)
         existing_fgs = list(fg_matches.keys())
         
-        # Get list of carbons that could be modified
         carbon_indices = [atom.GetIdx() for atom in mol.GetAtoms() 
                          if atom.GetSymbol() == 'C' and atom.GetDegree() < 4]
         
-        # Property-specific suggestions
         if target_property == 'solubility':
             # Add hydrophilic groups
             hydrophilic_fgs = ['hydroxyl', 'amino', 'carboxyl', 'amide', 'sulfone']
@@ -733,7 +553,7 @@ class ModifyFunctionalGroup:
                 if len(suggestions) < num_suggestions and fg not in existing_fgs and carbon_indices:
                     suggestions.append(('add', fg, f"Adding {fg} group will increase water solubility"))
                     
-            # Replace hydrophobic groups with hydrophilic ones
+            # Replace hydrophobic groups with hydrophilic
             hydrophobic_fgs = ['methyl', 'halogen', 'alkene', 'alkyne']
             for fg in hydrophobic_fgs:
                 if fg in existing_fgs and len(suggestions) < num_suggestions:
@@ -762,25 +582,21 @@ class ModifyFunctionalGroup:
                     suggestions.append(('add', fg, f"Adding {fg} group will increase reactivity"))
         
         elif target_property == 'drug-like':
-            # Add groups common in drugs
+            # Add common drug-like groups
             for fg in self.drug_like_priority:
                 if len(suggestions) < num_suggestions and fg not in existing_fgs and carbon_indices:
                     suggestions.append(('add', fg, f"Adding {fg} group is common in drug molecules"))
                     
-            # Check Lipinski violations and suggest fixes
-            # (simplified approach)
             mol_weight = Chem.Descriptors.MolWt(mol)
             if mol_weight > 500 and len(suggestions) < num_suggestions:
                 suggestions.append(('general', 'reduce size', 
                                   "Molecule may be too large for drug-likeness; consider simplifying structure"))
                                   
-        # If we need more suggestions, add general ones
         while len(suggestions) < num_suggestions:
             if not existing_fgs and not carbon_indices:
                 break
                 
             if existing_fgs and random.random() < 0.7:
-                # Suggest modification of existing group
                 source_fg = random.choice(existing_fgs)
                 target_options = [fg for fg in self.functional_groups if fg != source_fg]
                 if target_options:
@@ -788,7 +604,6 @@ class ModifyFunctionalGroup:
                     suggestions.append(('modify', f"{source_fg} to {target_fg}", 
                                       f"Changing {source_fg} to {target_fg} will alter molecular properties"))
             elif carbon_indices:
-                # Suggest adding new functional group
                 fg = random.choice(list(self.functional_groups.keys()))
                 if fg not in existing_fgs:
                     suggestions.append(('add', fg, f"Adding {fg} group will introduce new functionality"))
@@ -796,16 +611,6 @@ class ModifyFunctionalGroup:
         return suggestions[:num_suggestions]
     
     def apply_suggestion(self, mol: Chem.Mol, suggestion: Tuple[str, str, str]) -> Optional[str]:
-        """
-        Apply a suggested modification to a molecule.
-        
-        Args:
-            mol (Chem.Mol): Input molecule
-            suggestion (Tuple): (modification_type, functional_group, rationale)
-            
-        Returns:
-            SMILES string of modified molecule or None if unsuccessful
-        """
         if not mol:
             if self.log and self.logger:
                 self.logger.error("Invalid molecule provided")
@@ -814,7 +619,6 @@ class ModifyFunctionalGroup:
         mod_type, fg_info, _ = suggestion
         
         if mod_type == 'add':
-            # Find suitable attachment site
             carbon_indices = [atom.GetIdx() for atom in mol.GetAtoms() 
                              if atom.GetSymbol() == 'C' and atom.GetDegree() < 4]
             
@@ -823,7 +627,6 @@ class ModifyFunctionalGroup:
                     self.logger.error("No suitable carbon attachment sites found")
                 return Chem.MolToSmiles(mol)
                 
-            # Choose a random attachment site
             site_idx = random.choice(carbon_indices)
             return self.add_functional_group(mol, fg_info, site_idx)
             
@@ -837,7 +640,6 @@ class ModifyFunctionalGroup:
             return self.remove_functional_group(mol, fg_info)
             
         elif mod_type == 'modify':
-            # Parse "source to target" format
             parts = fg_info.split(' to ')
             if len(parts) != 2:
                 if self.log and self.logger:
@@ -857,20 +659,6 @@ class ModifyFunctionalGroup:
         return Chem.MolToSmiles(mol)
 
     def batch_process(self, smiles_list: List[str], modifications: List[Tuple[str, str, int]]) -> List[str]:
-        """
-        Apply multiple modifications to a list of molecules.
-        
-        Args:
-            smiles_list (List[str]): List of SMILES strings
-            modifications (List[Tuple]): List of (operation, functional_group, parameter)
-                operation: 'add', 'remove', 'modify'
-                functional_group: for 'add'/'remove', or source_fg for 'modify'
-                parameter: site_idx for 'add', instance_idx for 'remove',
-                          or target_fg for 'modify'
-            
-        Returns:
-            List of modified SMILES strings
-        """
         results = []
         
         for smiles in smiles_list:
@@ -885,19 +673,16 @@ class ModifyFunctionalGroup:
             
             for operation, fg, param in modifications:
                 if operation == 'add':
-                    # param is site_idx
                     new_smiles = self.add_functional_group(curr_mol, fg, param)
                     if new_smiles:
                         curr_mol = Chem.MolFromSmiles(new_smiles)
                         
                 elif operation == 'remove':
-                    # param is instance_idx
                     new_smiles = self.remove_functional_group(curr_mol, fg, param)
                     if new_smiles:
                         curr_mol = Chem.MolFromSmiles(new_smiles)
                         
                 elif operation == 'modify':
-                    # param is target_fg
                     new_smiles = self.modify_functional_group(curr_mol, fg, param)
                     if new_smiles:
                         curr_mol = Chem.MolFromSmiles(new_smiles)
@@ -908,18 +693,14 @@ class ModifyFunctionalGroup:
 
 
 def main():
-    """Example usage of the ModifyFunctionalGroup class"""
     import logging
     
-    # Set up logging
     logging.basicConfig(level=logging.INFO, 
                        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     logger = logging.getLogger('FunctionalGroupModifier')
     
-    # Create instance
     modifier = ModifyFunctionalGroup(logger=logger, log=True)
     
-    # Example molecules
     aspirin = 'CC(=O)OC1=CC=CC=C1C(=O)O'  # Aspirin
     caffeine = 'CN1C=NC2=C1C(=O)N(C(=O)N2C)C'  # Caffeine
     ibuprofen = 'CC(C)CC1=CC=C(C=C1)C(C)C(=O)O'  # Ibuprofen

@@ -1,6 +1,4 @@
-import sys, os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
+import argparse
 
 import torch
 import random
@@ -12,8 +10,9 @@ import dqn.dqn_hyperparams as hyp
 from dqn.utils import track, calc_multi_obj_properties
 import rdkit
 from rdkit import Chem
+from experiments.data.targets import TARGETS, DEFAULT_TARGET
 
-device = 'cuda:3'
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 states = []
 rewards = []
 
@@ -50,23 +49,13 @@ def run_dqn(
                 environment.initialize()
 
                 all_actions = list(environment.get_valid_actions())
-                
                 obs = create_graph(all_actions) 
-
-                # print('observations in graphs: ', obs)
-
                 chosen_act = agent.get_action(obs, hyp.eps_threshold)
-
                 action_obs = all_actions[chosen_act]
                 result = environment.step(action_obs)
-
                 _, reward, done = result
+
                 all_action_obs = list(environment.get_valid_actions())
-
-
-                # if episode == 150:
-                #     break
-
                 agent.replay_buffer.add(
                     obs_t=action_obs,
                     action=0,
@@ -114,13 +103,19 @@ def run_dqn(
     return agent, states, rewards
 
 if __name__ == "__main__":
-    smiles_path = '/home/ubuntu/metis-data-storage1/FactorVAE_Data/all.txt'
-    with open(smiles_path, 'r') as f:
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--smiles-path', type=str, required=True,
+                         help='Path to a newline-delimited file of starting SMILES')
+    parser.add_argument('--target-name', type=str, default=DEFAULT_TARGET, choices=list(TARGETS))
+    parser.add_argument('--num-mols', type=int, default=1000)
+    args = parser.parse_args()
+
+    with open(args.smiles_path, 'r') as f:
         smiles_list = f.read().splitlines()
 
-    start_mols = random.sample(smiles_list, 1000)
-    
-    target_seq = 'MDVFMKGLSKAKEGVVAAAEKTKQGVAEAAGKTKEGVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKDQLGKNEEGAPQEGILEDMPVDPDNEAYEMPSEEGYQDYEPEA'
+    start_mols = random.sample(smiles_list, args.num_mols)
+
+    target_seq = TARGETS[args.target_name]
     agent, states, rewards = run_dqn(start_mols, target_seq)
 
     track(states, 'multiobj_states')

@@ -1,33 +1,42 @@
+import random
+
+import torch
 import gymnasium as gym
 from gymnasium import spaces
+from rdkit import Chem
+
 from molecular_modifications.atom_optimization import ModifyAtom
 from molecular_modifications.bond_optimization import ModifyBond
 from molecular_modifications.bioisosteres_optimization import ModifyBioisosteres
 from molecular_modifications.functional_group_optimization import ModifyFunctionalGroup
 from molecular_modifications.logger import setup_molecule_logger
-from mol_graph import GraphDataset
-import ppo_hyperparams as hp
-import rdkit
-from rdkit import Chem
+from ppo.mol_graph import GraphDataset
+import ppo.ppo_hyperparams as hp
+import dqn.dqn_hyperparams as reward_hp
 from ADMET.model import ADMETModel
-from binding_module.binding_affinity.plapt import Plapt, run_predictions
-from binding_module.selectivity.compare import compare_affinities
+from binding_module.binding_affinity.plapt import Plapt
 from synthetic_accessibility.sa_score import SyntheticAccessibility
-import random
+from reward.multi_objective import compute_reward
 
-# OBSERVATIONS = [PYG OBJECT]
 
-class MoleculeEnv:
-    def __init__(self, target_seq, off_target_seq=None):
+class MoleculeEnv(gym.Env):
+    def __init__(self, target_seq, off_target_seq=None, device=None, base_mols=None):
         super(MoleculeEnv, self).__init__()
         self.mol_logger = setup_molecule_logger()
-        self.action_space = spaces.Discrete(len(self.actions))
-        self.current_mol = None
+        self.graph_dataset = GraphDataset()
         self.target_seq = target_seq
         self.off_target_seq = off_target_seq
-        self.admet_model = ADMETModel()
-        self.binding_aff_model = Plapt()
+        self.device = device or torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.base_mols = list(base_mols) if base_mols is not None else list(hp.base_mols)
+        self.admet_model = ADMETModel(self.device)
+        self.binding_model = Plapt(device=str(self.device))
         self.sa_model = SyntheticAccessibility()
+
+        self.action_space = None
+        self.observation_space = spaces.Box(low=-float('inf'), high=float('inf'), shape=(self.graph_dataset.node_feature_dim,))
+
+        self.current_mol = None
+        self.current_actions = []
         self.total_steps = 0
         self.step_count = 0
         self.current_reward = 0
@@ -36,47 +45,34 @@ class MoleculeEnv:
         self.episode_reward = 0
         self.episode_lengths = []
 
-    def reset(self):
+    def reset(self, *, seed=None, options=None):
         self.current_mol = self.sample_initial_molecule()
+        self.current_actions = self.get_actions(self.current_mol)
         self.step_count = 0
         self.current_reward = 0
         self.episode_reward = 0
         self.done = False
 
-        return self.current_mol
+        return self.graph_dataset.mol_to_state_vector(self.current_mol), {}
 
     def sample_initial_molecule(self):
-        sample_mol = Chem.MolFromSmiles(hp.base_mols[random.randint(0, len(hp.base_mols) - 1)])
-        return sample_mol
-    
+        return Chem.MolFromSmiles(random.choice(self.base_mols))
+
     def step(self, action: int):
-        """
-        Step for the agent in the environment
+        self.current_mol = self.current_actions[action]
+        self.current_actions = self.get_actions(self.current_mol)
 
-        Args:
-            action (int): action to take in the environment
-
-        Returns:
-            observation, reward, done, info
-        """
-        # Get observation
-        actions = self.get_actions(self.current_mol)
-        obs = actions[action]
-        self.current_mol = Chem.MolFromSmiles(GraphDataset.graph_to_mol(obs))
-
-        # Compute reward
         reward = self.reward(self.current_mol)
+        self.current_reward = reward
+        self.step_count += 1
 
-        # Check if done
-        done = self.step_count >= hp.steps_per_episode
-        self.done = done
+        terminated = self.step_count >= hp.steps_per_episode
+        self.done = terminated
 
-        # Info --> Add for logging/metrics
-        info = {
-            'smiles': Chem.MolToSmiles(obs),
-        }
+        info = {'smiles': Chem.MolToSmiles(self.current_mol)}
+        obs = self.graph_dataset.mol_to_state_vector(self.current_mol)
 
-        return obs, reward, done, info
+        return obs, reward, terminated, False, info
 
     def get_actions(self, state=None):
         modify_atom = ModifyAtom(self.mol_logger)
@@ -85,34 +81,23 @@ class MoleculeEnv:
         modify_func = ModifyFunctionalGroup(self.mol_logger)
 
         if state is None:
-            return hp.base_mols
-        
-        if isinstance(state, str):
-            mol = Chem.MolFromSmiles(state)
-        else:
-            mol = state
+            return self._pad_actions([Chem.MolFromSmiles(smi) for smi in self.base_mols])
+
+        mol = Chem.MolFromSmiles(state) if isinstance(state, str) else state
 
         actions = set()
 
         # Atom actions
-        actions.add(
-            modify_atom.add_atom(mol, 5)
-        )
-        actions.add(
-            modify_atom.remove_atom(mol, 5)
-        )
-        actions.add(
-            modify_atom.modify_atom(mol, 5)
-        )
+        actions.add(modify_atom.add_atom(mol, 5))
+        actions.add(modify_atom.remove_atom(mol, 5))
+        actions.add(modify_atom.modify_atom(mol, 5))
 
         # Bond actions
         for i in range(3):
-            actions.add(
-                modify_bond.optimize_bond(mol, i)
-            )
+            actions.add(modify_bond.optimize_bond(mol, i))
 
         # Bioisosteric groups actions
-        modify_mappings = [
+        bio_mappings = [
             ('carboxylic_acid', 'tetrazole'),
             ('carboxylic_acid', 'phosphonic_acid'),
             ('amine', None),
@@ -121,38 +106,19 @@ class MoleculeEnv:
             ('phenyl', 'pyridyl'),
             ('phenyl', 'thiophene'),
             ('phenyl', 'furan'),
-            ('phenyl', 'pyrrole')
+            ('phenyl', 'pyrrole'),
         ]
-
-        for bio1, bio2 in modify_mappings:
-            actions.add(
-                modify_bio.apply_modification(mol, bio1, bio2)
-            )
+        for bio1, bio2 in bio_mappings:
+            actions.add(modify_bio.apply_modification(mol, bio1, bio2))
 
         # Functional group actions
-        fg_groups = ['methyl',
-                     'hyroxyl',
-                     'amino',
-                     'carboxyl',
-                     'carbonyl',
-                     'aldehyde',
-                     'ketone',
-                     'ether',
-                     'ester',
-                     'amide',
-                     'nitro',
-                     'cyano',
-                     'thiol',
-                     'halogen',
-                     'azide',
-                     'sulfonamide']
-        
+        fg_groups = ['methyl', 'hyroxyl', 'amino', 'carboxyl', 'carbonyl', 'aldehyde',
+                     'ketone', 'ether', 'ester', 'amide', 'nitro', 'cyano', 'thiol',
+                     'halogen', 'azide', 'sulfonamide']
         for fg in fg_groups:
-            actions.add(
-                modify_func.remove_functional_group(mol, fg)
-            )
-        
-        modify_mappings = [
+            actions.add(modify_func.remove_functional_group(mol, fg))
+
+        fg_mappings = [
             ('hydroxyl', 'amino'),
             ('hydroxyl', 'thiol'),
             ('hydroxyl', 'methyl'),
@@ -170,77 +136,32 @@ class MoleculeEnv:
             ('ester', 'carboxyl'),
             ('amide', 'carboxyl'),
         ]
+        for fg1, fg2 in fg_mappings:
+            actions.add(modify_func.modify_functional_group(mol, fg1, fg2))
 
-        for fg_pair in modify_mappings:
-            actions.add(
-                modify_func.modify_functional_group(mol, fg_pair[0], fg_pair[1])
-            )
+        candidates = [Chem.MolFromSmiles(smi) for smi in actions if smi]
+        candidates = [mol for mol in candidates if mol is not None]
 
-        return {Chem.MolFromSmiles(smile) for smile in actions if smile}
+        return self._pad_actions(candidates if candidates else [mol])
 
-    def reward(self, mol, weights=None):
-        smiles = [Chem.MolToSmiles(m) for m in [mol]]
+    @staticmethod
+    def _pad_actions(candidates):
+        if len(candidates) >= hp.max_actions:
+            return candidates[:hp.max_actions]
+        return [candidates[i % len(candidates)] for i in range(hp.max_actions)]
 
-        admet_properties = ['QED',
-                            'Lipinski',
-                            'Bioavailability_Ma',
-                            'BBB_Martins',
-                            'DILI',
-                            'Clearance_Hepatocyte_AZ',
-                            'Clearance_Microsome_AZ',
-                            'Half_Life_Obach',
-                            'hERG',
-                            'ClinTox',
-                            'LD50_Zhu']
-        admet_optim_directions = [1, 1, 1, 1, -1, 1, 1, 1, -1, -1, -1]
-
-        # ADMET Predictions
-        admet_preds = self.admet_model.predict(smiles)
-        admet_rewards = []
-        all_admet_values = []
-
-        for i in range(len(admet_preds)):
-            admet_values = [admet_preds.iloc[i][prop] for prop in admet_properties]
-            all_admet_values.append(admet_values)  # Store all ADMET values for obj_vector
-
-            admet_reward = sum(
-                admet_values[j] if admet_optim_directions[j] == 1 else (1 / admet_values[j])
-                for j in range(len(admet_properties))
-            )
-            admet_rewards.append(admet_reward)
-
-        # Binding Affinity Predictions
-        binding_aff_preds = run_predictions(self.binding_aff_model, self.target_seq, smiles)
-        
-        if self.off_target_seq:
-            binding_off_target_preds = run_predictions(self.binding_aff_model, self.off_target_seq, smiles)    
-            selectivity_values = compare_affinities(binding_aff_preds, binding_off_target_preds)
-
-        # Synthetic Accessibility Scores
-        sa_preds = self.sa_model.processSMILES(smiles)
-
-        if self.off_target_seq:
-            if weights:
-                final_rewards = [
-                    weights[0]*admet + weights[1]*(1 / binding_aff) + weights[2]*selectivity + weights[3]*(1 / sa)
-                    for admet, binding_aff, selectivity, sa in zip(admet_rewards, binding_aff_preds, selectivity_values, sa_preds)
-                ]
-            else:
-                final_rewards = [
-                    admet + (1 / binding_aff) + selectivity + (1 / sa)
-                    for admet, binding_aff, selectivity, sa in zip(admet_rewards, binding_aff_preds, selectivity_values, sa_preds)
-                ]
-        else:
-            if weights:
-                final_rewards = [
-                    weights[0]*admet + weights[1]*(1 / binding_aff) + weights[2]*(1 / sa)
-                    for admet, binding_aff, sa in zip(admet_rewards, binding_aff_preds, sa_preds)
-                ]
-            else:
-                final_rewards = [
-                admet + (1 / binding_aff) + (1 / sa)
-                for admet, binding_aff, sa in zip(admet_rewards, binding_aff_preds, sa_preds)
-                ]
-
-        return final_rewards
-
+    def reward(self, mol):
+        result = compute_reward(
+            smiles=Chem.MolToSmiles(mol),
+            target_seq=self.target_seq,
+            device=self.device,
+            off_target_seq=self.off_target_seq,
+            admet_weight=reward_hp.admet_weight,
+            binding_weight=reward_hp.binding_weight,
+            synthetic_weight=reward_hp.synthetic_weight,
+            selectivity_weight=reward_hp.selectivity_weight,
+            admet_model=self.admet_model,
+            binding_model=self.binding_model,
+            sa_model=self.sa_model,
+        )
+        return result["reward"]
