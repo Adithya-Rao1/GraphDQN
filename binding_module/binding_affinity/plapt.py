@@ -8,9 +8,12 @@ from diskcache import Cache
 from tqdm import tqdm
 from contextlib import contextmanager, nullcontext
 import os
+from pathlib import Path
+
+_DEFAULT_ONNX_PATH = str(Path(__file__).resolve().parent / "models" / "affinity_predictor.onnx")
 
 class PredictionModule:
-    def __init__(self, model_path: str = os.getcwd() + "/Model_Library/binding_module/binding_affinity/models/affinity_predictor.onnx"):
+    def __init__(self, model_path: str = _DEFAULT_ONNX_PATH):
         self.session = onnxruntime.InferenceSession(model_path)
         self.input_name = self.session.get_inputs()[0].name
         self.mean = 6.51286529169358
@@ -32,7 +35,7 @@ class PredictionModule:
         return affinities
 
 class Plapt:
-    def __init__(self, prediction_module_path: str = os.getcwd() + "/Model_Library/binding_module/binding_affinity/models/affinity_predictor.onnx", device: str = 'cuda', cache_dir: str = './embedding_cache', use_tqdm: bool = False):
+    def __init__(self, prediction_module_path: str = _DEFAULT_ONNX_PATH, device: str = 'cuda', cache_dir: str = './embedding_cache', use_tqdm: bool = False):
         self.device = torch.device(device if torch.cuda.is_available() else 'cpu')
         self.use_tqdm = use_tqdm
         
@@ -160,7 +163,6 @@ def run_predictions(plapt, prot_seqs, mol_smiles, mol_batch_size=16, affinity_ba
     
     return affinities
     
-'''# Example usage
 if __name__ == "__main__":
     plapt = Plapt()
     
@@ -180,9 +182,8 @@ if __name__ == "__main__":
                            "CC1=CC=C(C=C1)C2=CC(=NN2C3=CC=C(C=C3)S(=O)(=O)N)C(F)(F)F"]
     
     scores = plapt.score_candidates(target_protein, candidate_molecules, mol_batch_size=16, affinity_batch_size=128)
-    print("\nScore Candidates Results:", scores)'''
+    print("\nScore Candidates Results:", scores)
 
-'''if __name__ == "__main__":
     target_protein = "MAEPRQEFEVMEDHAGTYGLGDRKDQGGYTMHQDQEGDTDAGLKESPLQTPTEDGSEEPGSETSDAKSTPTAEDVTAPLVDEGAPGKQAAAQPHTEIPEGTTAEEAGIGDTPSLEDEAAGHVTQEPESGKVVQEGFLREPGPPGLSHQLMSGMPGAPLLPEGPREATRQPSGTGPEDTEGGRHAPELLKHQLLGDLHQEGPPLKGAGGKERPGSKEEVDEDRDVDESSPQDSPPSKASPAQDGRPPQTAAREATSIPGFPAEGAIPLPVDFLSKVSTEIPASEPDGPSVGRAKGQDAPLEFTFHVEITPNVQKEQAHSEEHLGRAAFPGAPGEGPEARGPSLGEDTKEADLPEPSEKQPAAAPRGKPVSRVPQLKARMVSKSKDGTGSDDKKAKTSTRSSAKTLKNRPCLSPKHPTPGSSDPLIQPSSPAVCPEPPSSPKYVSSVTSRTGSSGAKEMKLKGADGKTKIATPRGAAPPGQKGQANATRIPAKTPPAPKTPPSSGEPPKSGDRSGYSSPGSPGTPGSRSRTPSLPTPPTREPKKVAVVRTPPKSPSSAKSRLQTAPVPMPDLKNVKSKIGSTENLKHQPGGGKVQIINKKLDLSNVQSKCGSKDNIKHVPGGGSVQIVYKPVDLSKVTSKCGSLGNIHHKPGGGQVEVKSEKLDFKDRVQSKIGSLDNITHVPGGGNKKIETHKLTFRENAKAKTDHGAEIVYKSPVVSGDTSPRHLSNVSSTGSIDMVDSPQLATLADEVSASLAKQGL"
     candidate_molecules = ["N#CC1=C(C(F)(F)F)C([N+]([O-])=O)=C(C2=CC=CC([N+]([O-])=O)=C2)NC1=O", 
                            "CN1[C@@](N(C)CC2)([H])[C@@]2(C)C3=C1C=CC(OC(NC4=CC=CC=C4)=O)=C3",
@@ -190,4 +191,4 @@ if __name__ == "__main__":
     
     for candidate in candidate_molecules:
         affinities = run_predictions(Plapt(), target_protein, [candidate])
-        print(affinities)'''
+        print(affinities)

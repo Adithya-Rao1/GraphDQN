@@ -2,8 +2,6 @@ import os
 import logging
 
 def setup_molecule_logger(log_dir='./logs', log_filename='molecular_mods.log'):
-    """Set up a logger that writes logs to a file and console."""
-    # Create the log directory if it doesn't exist
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
 

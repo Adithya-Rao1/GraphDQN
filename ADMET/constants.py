@@ -1,12 +1,12 @@
 """Contains constants used throughout ADMET-AI."""
 from importlib import resources
+from pathlib import Path
 
+_DATA_ROOT = Path(__file__).resolve().parent.parent / "GraphDQN_Data"
 
-# Paths to data and models
-
-DEFAULT_ADMET_PATH = "Meits_Data/admet_data/admet.csv"
-DEFAULT_DRUGBANK_PATH = "Metis_Data/admet_data/drugbank_approved.csv" 
-DEFAULT_MODELS_DIR = "Metis_Data/admet_models" 
+DEFAULT_ADMET_PATH = _DATA_ROOT / "admet_data" / "admet.csv"
+DEFAULT_DRUGBANK_PATH = _DATA_ROOT / "admet_data" / "drugbank_approved.csv"
+DEFAULT_MODELS_DIR = _DATA_ROOT / "admet_models"
 
 # DrugBank columns
 DRUGBANK_ID_COLUMN = "id"

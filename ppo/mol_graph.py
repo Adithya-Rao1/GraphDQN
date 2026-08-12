@@ -52,15 +52,9 @@ EXPLICIT_HS = [0, 1, 2, 3]
 
 
 class GraphDataset(Dataset):
-    """
-    Dataset class for graph data
-
-    Args:
-        data (list): List of SMILES strings or RDkit Mol objects
-    """
     def __init__(self, data=None):
-        self.data = data
-        self.mols = [Chem.MolFromSmiles(compound) if isinstance(compound, str) else compound for compound in data]        
+        self.data = data or []
+        self.mols = [Chem.MolFromSmiles(compound) if isinstance(compound, str) else compound for compound in self.data]
         self.graphs = [self.graph_to_pyg(self.mol_to_graph(mol)) for mol in self.mols]
     
     def categorical_encoding(self, x, possible_values):
@@ -126,26 +120,33 @@ class GraphDataset(Dataset):
 
     def graph_to_pyg(self, G):
         pyg_graph = from_networkx(G)
-        
-        node_attrs = ['atomic_sym', 'formal_charge', 'chiral_tag', 'hybridization', 'num_explicit_hs', 'is_aromatic']
-        
-        node_features = []
-        for node in G.nodes():
-            features = [G.nodes[node].get(attr, 0) for attr in node_attrs]
-            node_features.append(features)
-        
-        pyg_graph.x = torch.cat([feat for feature in node_features for feat in feature], dim=0)  # Node features tensor
 
-        edge_attr = []
-        for edge in G.edges():
-            edge_attr.append([G.edges[edge].get('bond_type', 0)])  # Bond type as a numeric value (or one-hot if needed)
+        node_attrs = ['atomic_sym', 'formal_charge', 'chiral_tag', 'hybridization', 'num_explicit_hs', 'is_aromatic']
+        node_features = [
+            torch.cat([G.nodes[node][attr] for attr in node_attrs]).float()
+            for node in G.nodes()
+        ]
+        pyg_graph.x = torch.stack(node_features, dim=0) if node_features else torch.zeros((0, self.node_feature_dim))
         
-        pyg_graph.edge_attr = torch.stack([att for attr in edge_attr for att in attr], dim=0)  # Edge features tensor
-        
+        edge_features = [G.edges[edge]['bond_type'].float() for edge in G.edges()]
+        pyg_graph.edge_attr = torch.stack(edge_features, dim=0) if edge_features else torch.zeros((0, len(BOND_TYPES)))
+
         return pyg_graph
-    
+
     def mol_to_pyg(self, mol):
         return self.graph_to_pyg(self.mol_to_graph(mol))
+
+    @property
+    def node_feature_dim(self):
+        return len(ATOM_TYPES) + len(FORMAL_CHARGES) + len(CHIRAL_TYPES) + len(HYBRIDIZATION_TYPES) + len(EXPLICIT_HS) + len(AROMATIC_TYPES)
+
+    def mol_to_state_vector(self, mol):
+        graph = self.mol_to_graph(mol)
+        if graph.number_of_nodes() == 0:
+            return torch.zeros(self.node_feature_dim)
+
+        pyg_graph = self.graph_to_pyg(graph)
+        return pyg_graph.x.mean(dim=0)
 
     def __len__(self):
         return len(self.data)
@@ -153,7 +154,7 @@ class GraphDataset(Dataset):
     def __getitem__(self, idx):
         return self.graphs[idx]
 
-"""if __name__ == "__main__":
+if __name__ == "__main__":
     smiles_list = ["CCO"]
 
     dataset = GraphDataset(smiles_list)
@@ -166,6 +167,6 @@ class GraphDataset(Dataset):
     graph = dataset.mol_to_graph(mol)
     pygraph = dataset.graph_to_pyg(graph)
     mol2 = dataset.graph_to_mol(graph)
-    print(Chem.MolToSmiles(mol2))"""
+    print(Chem.MolToSmiles(mol2))
     
 

@@ -2,21 +2,22 @@ import math
 import os.path as op
 import pickle
 from collections import defaultdict
+from pathlib import Path
 
 from rdkit import Chem
-from rdkit.Chem import rdMolDescriptors
+from rdkit.Chem import rdFingerprintGenerator, rdMolDescriptors
 import sys
 
 _fscores = None
+_DATA_ROOT = Path(__file__).resolve().parent / "GraphDQN_Data"
 
 class SyntheticAccessibility(object):
   @staticmethod
   def readFragmentScores(name='fpscores'):
     import gzip
     global _fscores
-    # generate the full path filename:
     if name == "fpscores":
-      name = f'Metis_Data/sa_score_data/{name}'
+      name = str(_DATA_ROOT / "sa_score_data" / name)
     data = pickle.load(gzip.open('%s.pkl.gz' % name))
     outDict = {}
     for i in data:
@@ -35,10 +36,10 @@ class SyntheticAccessibility(object):
     if _fscores is None:
       SyntheticAccessibility.readFragmentScores()
 
-    # fragment score
-    fp = rdMolDescriptors.GetMorganFingerprint(m,
-                                              2)  # <- 2 is the *radius* of the circular fingerprint
+    morgan_gen = rdFingerprintGenerator.GetMorganGenerator(radius=2, fpSize=2048)
+    fp = morgan_gen.GetCountFingerprint(m)
     fps = fp.GetNonzeroElements()
+
     score1 = 0.
     nf = 0
     for bitId, v in fps.items():
@@ -107,8 +108,8 @@ class SyntheticAccessibility(object):
 
       return sa_scores
 
-# if __name__ == "__main__":
-#     smiles = sys.argv[1]
-#     predictor = SyntheticAccessibility()
-#     score = predictor.processSMILES(smiles)
-#     print(score)
+if __name__ == "__main__":
+    smiles = sys.argv[1]
+    predictor = SyntheticAccessibility()
+    score = predictor.processSMILES(smiles)
+    print(score)

@@ -1,7 +1,3 @@
-import sys, os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-
 import torch
 import random
 import numpy as np
@@ -12,8 +8,9 @@ import dqn.dqn_hyperparams as hyp
 from dqn.utils import track, calc_multi_obj_properties
 import rdkit
 from rdkit import Chem
+from experiments.data.targets import TARGETS, DEFAULT_TARGET
 
-device = 'cuda:4'
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 states = []
 rewards = []
 
@@ -50,25 +47,13 @@ def run_dqn(
                 environment.initialize()
 
                 all_actions = list(environment.get_valid_actions())
-
-                
                 obs = create_graph(all_actions) 
-
-                # print('observations in graphs: ', obs)
-
                 chosen_act = agent.get_action(obs, hyp.eps_threshold)
-
                 action_obs = all_actions[chosen_act]
                 result = environment.step(action_obs)
-
                 _, reward, done = result
 
                 all_action_obs = list(environment.get_valid_actions())
-
-
-                # if episode == 150:
-                #     break
-
                 agent.replay_buffer.add(
                     obs_t=action_obs,
                     action=0,
@@ -76,8 +61,6 @@ def run_dqn(
                     obs_tp1=all_action_obs,
                     done=float(result.terminated)
                 )
-
-                print('Replay buffer length: ', agent.replay_buffer.__len__())
 
                 if agent.replay_buffer.__len__() % hyp.batch_size == 0:
                     for obs in agent.replay_buffer._storage:
@@ -128,6 +111,6 @@ if __name__ == "__main__":
         ]
 
     start_mols = random.sample(smiles_list, 5)
-    
-    target_seq = 'MDVFMKGLSKAKEGVVAAAEKTKQGVAEAAGKTKEGVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKDQLGKNEEGAPQEGILEDMPVDPDNEAYEMPSEEGYQDYEPEA'
+
+    target_seq = TARGETS[DEFAULT_TARGET]
     agent, states, rewards = run_dqn(start_mols, target_seq)

@@ -1,17 +1,13 @@
-import sys, os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-
 import torch
 import random
 import numpy as np
 import rdkit
 from rdkit import Chem
-from dqn.all_envs import MultiObjectiveRewardEnv
+from dqn.all_envs import MultiObjectiveRewardEnv, QEDConstrainedEnv
 from dqn.dqn_network import DKDQNAgent
 from dqn.utils import create_graph, setup_dqn_logger, track, penalized_logp
 import dqn.dqn_hyperparams as hyp
-import smiles_800
+from all_experiments import smiles_800
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -20,29 +16,17 @@ def run_dqn1(
         logger=setup_dqn_logger(),
         log=False
         ):
-
-    """
-    Train a DQN to optimize logP of a molecule.
-
-    Args:
-        device (torch.device): The device to use for training.
-        logger (logging.Logger): A logger to log events to.
-        log (bool): Whether or not to log events.
-
-    Returns:
-        replay_buffer (ReplayBuffer): The replay buffer storing all experiences.
-    """
     agent = DKDQNAgent(
         output_dim = 15,
         device = device
     )
 
     batch_losses = []
-
     environment = MultiObjectiveRewardEnv(
             discount_factor = hyp.discount_factor,
+            device = device,
             init_mol = hyp.start_molecule,
-            max_steps = hyp.max_steps                
+            max_steps = hyp.max_steps
         )
 
     environment.initialize()
@@ -50,31 +34,13 @@ def run_dqn1(
     for episode in range(hyp.num_episodes):
         for step in range(hyp.max_steps):
             all_actions = list(environment.get_valid_actions())
-            # print("#"*100)
-            # print('')
-            # print()
-            # print('all actions initial ', all_actions)
-            # print('environment state before step ', environment._state)
-            
             obs = create_graph(all_actions) 
-
-            # print('observations in graphs: ', obs)
-
             chosen_act = agent.get_action(obs, hyp.eps_threshold)
-
             action_obs = all_actions[chosen_act]
-            # print('action_obs', action_obs)
             result = environment.step(action_obs)
-
             _, reward, done = result
-            # print('environment state after step ', environment._state)
+
             all_action_obs = list(environment.get_valid_actions())
-            # print('all actions after step: ', all_action_obs)
-            # print('reward ', reward)
-
-            # if episode == 150:
-            #     break
-
             agent.replay_buffer.add(
                 obs_t=action_obs,
                 action=0,
@@ -82,8 +48,6 @@ def run_dqn1(
                 obs_tp1=all_action_obs,
                 done=float(result.terminated)
             )
-
-            # print('Agent replay buffer length: ', agent.replay_buffer.__len__())
 
             if done:
                 final_reward = reward
@@ -130,8 +94,8 @@ def run_dqn2(
     for episode in range(hyp.num_episodes):
         for i in range(num_mols):
             for step in range(hyp.max_steps):
-                start_mol = start_mol[i]
-                environment = MultiObjectiveRewardEnv(
+                start_mol = start_mols[i]
+                environment = QEDConstrainedEnv(
                     discount_factor = hyp.discount_factor,
                     init_mol = start_mol,
                     target_molecule = start_mol,
@@ -141,31 +105,13 @@ def run_dqn2(
                 environment.initialize()
 
                 all_actions = list(environment.get_valid_actions())
-                # print("#"*100)
-                # print('')
-                # print()
-                # print('all actions initial ', all_actions)
-                # print('environment state before step ', environment._state)
-                
                 obs = create_graph(all_actions) 
-
-                # print('observations in graphs: ', obs)
-
                 chosen_act = agent.get_action(obs, hyp.eps_threshold)
-
                 action_obs = all_actions[chosen_act]
-                # print('action_obs', action_obs)
                 result = environment.step(action_obs)
-
                 _, reward, done = result
-                # print('environment state after step ', environment._state)
+
                 all_action_obs = list(environment.get_valid_actions())
-                # print('all actions after step: ', all_action_obs)
-                # print('reward ', reward)
-
-                # if episode == 150:
-                #     break
-
                 agent.replay_buffer.add(
                     obs_t=action_obs,
                     action=0,
@@ -173,8 +119,6 @@ def run_dqn2(
                     obs_tp1=all_action_obs,
                     done=float(result.terminated)
                 )
-
-                # print('Agent replay buffer length: ', agent.replay_buffer.__len__())
 
                 if done:
                     final_reward = reward
@@ -211,7 +155,7 @@ if __name__ == "__main__":
     track(states1, 'qed_states')
     track(rewards1, 'qed_rewards')
 
-    """all_obs2 = run_dqn2(smiles_800.start_mols)
+    all_obs2 = run_dqn2(smiles_800.start_mols)
     states2 = []
     rewards2 = []
 
@@ -220,5 +164,5 @@ if __name__ == "__main__":
         rewards2.append(obs[2])
 
     track(states2, 'qedconstrained_states', sort_by_values="low")
-    track(rewards2, 'qedconstrained_rewards')"""
+    track(rewards2, 'qedconstrained_rewards')
     

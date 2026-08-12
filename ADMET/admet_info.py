@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from constants import DEFAULT_ADMET_PATH
+from ADMET.constants import DEFAULT_ADMET_PATH
 
 
 ADMET_DF = pd.DataFrame()

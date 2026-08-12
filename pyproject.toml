@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "graphdqn"
+version = "0.1.0"
+description = "Graph-based RL (DQN and PPO) for multi-objective molecular optimization"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "torch",
+    "torch_geometric",
+    "rdkit",
+    "transformers",
+    "onnxruntime",
+    "diskcache",
+    "tqdm",
+    "numpy",
+    "pandas",
+    "scipy",
+    "scikit-learn",
+    "networkx",
+    "gymnasium",
+    "matplotlib",
+    "seaborn",
+    "chemprop",
+    "descriptastorus",
+    "ray[tune]",
+    "optuna",
+    "wandb",
+    "typed-argument-parser",
+]
+
+[tool.setuptools.packages.find]
+include = [
+    "dqn*",
+    "ppo*",
+    "ADMET*",
+    "binding_module*",
+    "molecular_modifications*",
+    "synthetic_accessibility*",
+    "reward*",
+    "experiments*",
+    "all_experiments*",
+]

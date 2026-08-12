@@ -1,6 +1,3 @@
-import sys, os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "molecular_modifications")))
-
 import collections
 import copy
 import itertools
@@ -144,8 +141,6 @@ class MoleculeEnv(object):
         return copy.deepcopy(self._valid_actions)
 
     def _reward(self):
-        # Default: Multiobjective optimization
-        
         if self._state == '':
             return 0.0
         return 0.0

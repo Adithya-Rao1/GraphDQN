@@ -1,7 +1,3 @@
-"""
-Dictionaries for storing chemical constants used throughout the library.
-"""
-
 ELECTRONEGATIVITY = {
     "H": 2.2,
     "C": 2.55,
@@ -61,8 +57,6 @@ MAX_FORMAL_CHARGE = {
     'B': 2,
     'Si': 2
 }
-
-# Empirical approximations
 
 VAN_DER_WAALS_RADII = {
     "H": 1.20,
