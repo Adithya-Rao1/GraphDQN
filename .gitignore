@@ -12,7 +12,7 @@ daily_goals.txt
 .claude/
 .vscode/
 
-Metis_Data/
+GraphDQN_Data/
 
 embedding_cache/
 

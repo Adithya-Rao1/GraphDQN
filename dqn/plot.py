@@ -42,7 +42,9 @@ def plot_molecule_distributions(molecules, filename="molecule_distributions.png"
     print(f"Graph saved as {filename}")
 
 if __name__ == "__main__":
-    smiles_list = [
+    import argparse
+
+    default_smiles = [
             'N#CC1=C(C(F)(F)F)C([N+]([O-])=O)=C(C2=CC=CC([N+]([O-])=O)=C2)NC1=O',
             'O=C(NC1=CC=C(NC(NC2=CC=CC3=C2C=CN3)=O)C=C1)NC4=C(C=CN5)C5=CC=C4',
             'O=C1N(C)C(CNCC)=NC2=C1C(Cl)=CC(Cl)=C2O.Br',
@@ -50,8 +52,17 @@ if __name__ == "__main__":
             'OC1=CC=C(CC2=CC=C(C(CC3=CC=C(C(CC4=CC=C(C=C4)O)=C3)O)=C2)O)C=C1'
             ]
 
-    smiles_path = 'Metis_Data/C_FactorVAE_Data/all.txt'
-    with open(smiles_path, 'r') as f:
-        smiles_list = f.read().splitlines()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--smiles-path', type=str, default=None,
+                         help='Path to a newline-delimited file of SMILES. Defaults to a small built-in example set.')
+    parser.add_argument('--target-name', type=str, default=DEFAULT_TARGET, choices=list(TARGETS))
+    parser.add_argument('--filename', type=str, default='molecule_distributions.png')
+    args = parser.parse_args()
 
-    plot_molecule_distributions(smiles_list)
+    if args.smiles_path:
+        with open(args.smiles_path, 'r') as f:
+            smiles_list = f.read().splitlines()
+    else:
+        smiles_list = default_smiles
+
+    plot_molecule_distributions(smiles_list, filename=args.filename, target_name=args.target_name)

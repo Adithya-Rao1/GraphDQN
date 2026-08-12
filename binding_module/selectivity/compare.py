@@ -15,9 +15,8 @@ def compare_affinities(target_affinity, off_target_affinity):
         return kd_ratio
 
 if __name__ == "__main__":
-    mol_smiles = ["C1=CC=CC=C1", "C1=CC=CN=C1"]
     target_affinity = [1.0, 2.0]
     off_target_affinity = [5.0, 3.0]
 
-    result = compare_affinities(mol_smiles, target_affinity, off_target_affinity)
+    result = compare_affinities(target_affinity, off_target_affinity)
     print(result)

@@ -9,7 +9,7 @@ from rdkit.Chem import rdFingerprintGenerator, rdMolDescriptors
 import sys
 
 _fscores = None
-_DATA_ROOT = Path(__file__).resolve().parent / "Metis_Data"
+_DATA_ROOT = Path(__file__).resolve().parent / "GraphDQN_Data"
 
 class SyntheticAccessibility(object):
   @staticmethod
@@ -37,7 +37,7 @@ class SyntheticAccessibility(object):
       SyntheticAccessibility.readFragmentScores()
 
     morgan_gen = rdFingerprintGenerator.GetMorganGenerator(radius=2, fpSize=2048)
-    fp = morgan_gen.GetFingerprint(mol)  
+    fp = morgan_gen.GetCountFingerprint(m)
     fps = fp.GetNonzeroElements()
 
     score1 = 0.

@@ -3,7 +3,7 @@ import random
 import numpy as np
 import rdkit
 from rdkit import Chem
-from dqn.all_envs import MultiObjectiveRewardEnv
+from dqn.all_envs import MultiObjectiveRewardEnv, QEDConstrainedEnv
 from dqn.dqn_network import DKDQNAgent
 from dqn.utils import create_graph, setup_dqn_logger, track, penalized_logp
 import dqn.dqn_hyperparams as hyp
@@ -94,8 +94,8 @@ def run_dqn2(
     for episode in range(hyp.num_episodes):
         for i in range(num_mols):
             for step in range(hyp.max_steps):
-                start_mol = start_mol[i]
-                environment = MultiObjectiveRewardEnv(
+                start_mol = start_mols[i]
+                environment = QEDConstrainedEnv(
                     discount_factor = hyp.discount_factor,
                     init_mol = start_mol,
                     target_molecule = start_mol,

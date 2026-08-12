@@ -2,7 +2,7 @@
 from importlib import resources
 from pathlib import Path
 
-_DATA_ROOT = Path(__file__).resolve().parent.parent / "Metis_Data"
+_DATA_ROOT = Path(__file__).resolve().parent.parent / "GraphDQN_Data"
 
 DEFAULT_ADMET_PATH = _DATA_ROOT / "admet_data" / "admet.csv"
 DEFAULT_DRUGBANK_PATH = _DATA_ROOT / "admet_data" / "drugbank_approved.csv"
