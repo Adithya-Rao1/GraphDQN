@@ -12,14 +12,10 @@ daily_goals.txt
 .claude/
 .vscode/
 
-# External data assets fetched by setup_remote.sh (ADMET-AI data/models, SA-Score
-# fragment scores) -- not checked into the repo, see README.
 Metis_Data/
 
-# PLAPT's protein/molecule embedding cache
 embedding_cache/
 
-# Experiment run artifacts
 wandb/
 ray_results/
 checkpoints/
