@@ -13,7 +13,7 @@ actor/critic.
 Requires **Python >= 3.10**.
 
 ```bash
-git clone <this-repo-url>
+git clone https://github.com/Adithya-Rao1/GraphDQN.git
 cd GraphDQN
 python3 -m venv .venv && source .venv/bin/activate
 pip install torch torch_geometric   # install first -- see note below
@@ -31,7 +31,7 @@ On a fresh cloud GPU instance, `setup_remote.sh` automates all of the above plus
 external data fetch below:
 
 ```bash
-git clone <this-repo-url>
+git clone https://github.com/Adithya-Rao1/GraphDQN.git
 cd GraphDQN
 bash setup_remote.sh
 ```
