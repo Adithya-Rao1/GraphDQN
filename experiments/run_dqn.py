@@ -11,6 +11,9 @@ from dqn.dqn_network import DKDQNAgent
 from dqn.utils import create_graph, setup_dqn_logger
 from experiments.data.targets import TARGETS, DEFAULT_TARGET
 from experiments.data.starting_molecules import sample_pilot_molecules
+from ADMET.model import ADMETModel
+from binding_module.binding_affinity.plapt import Plapt
+from synthetic_accessibility.sa_score import SyntheticAccessibility
 
 
 def run(target_name=DEFAULT_TARGET, seed=0, num_molecules=30, num_episodes=200,
@@ -24,6 +27,10 @@ def run(target_name=DEFAULT_TARGET, seed=0, num_molecules=30, num_episodes=200,
     start_mols = sample_pilot_molecules(n=num_molecules, seed=seed)
 
     agent = DKDQNAgent(output_dim=15, device=device)
+
+    admet_model = ADMETModel(device)
+    binding_model = Plapt(device=str(device))
+    sa_model = SyntheticAccessibility()
 
     wandb_run = None
     if use_wandb:
@@ -51,6 +58,9 @@ def run(target_name=DEFAULT_TARGET, seed=0, num_molecules=30, num_episodes=200,
             init_mol=start_mol,
             max_steps=hyp.max_steps,
             target_seq=target_seq,
+            admet_model=admet_model,
+            binding_model=binding_model,
+            sa_model=sa_model,
         )
         environment.initialize()
 

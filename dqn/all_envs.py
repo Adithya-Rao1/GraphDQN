@@ -95,14 +95,14 @@ class ADMETEnv(MoleculeEnv):
         return reward * self.discount_factor ** (self.max_steps - self._counter)
 
 class MultiObjectiveRewardEnv(MoleculeEnv):
-    def __init__(self, discount_factor, device, **kwargs):
+    def __init__(self, discount_factor, device, admet_model=None, binding_model=None, sa_model=None, **kwargs):
         super(MultiObjectiveRewardEnv, self).__init__(**kwargs)
         self.discount_factor = discount_factor
         self.device = device
 
-        self.admet_model = ADMETModel(self.device)
-        self.binding_model = Plapt(device=str(self.device))
-        self.sa_model = SyntheticAccessibility()
+        self.admet_model = admet_model if admet_model is not None else ADMETModel(self.device)
+        self.binding_model = binding_model if binding_model is not None else Plapt(device=str(self.device))
+        self.sa_model = sa_model if sa_model is not None else SyntheticAccessibility()
 
     def _reward(self):
         if self._state is None:
