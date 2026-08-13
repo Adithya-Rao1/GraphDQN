@@ -11,23 +11,22 @@ from dqn.utils import create_graph, obs_to_loader
 
 
 class DKDQNNetwork(nn.Module):
-    def __init__(self, output_dim=15, hidden_dim=256):
+    def __init__(self, output_dim=15, hidden_dim=256, feature_dim=42):
         super(DKDQNNetwork, self).__init__()
 
-        self.gcn = nn.Sequential(
-            GCNConv(1, hidden_dim),
-            nn.LayerNorm(hidden_dim),
-            nn.LeakyReLU(),
+        self.gcn_layers = nn.ModuleList([
+            GCNConv(feature_dim, hidden_dim),
             GCNConv(hidden_dim, 2 * hidden_dim),
-            nn.LayerNorm(2 * hidden_dim),
-            nn.LeakyReLU(),
             GCNConv(2 * hidden_dim, 2 * hidden_dim),
-            nn.LayerNorm(2 * hidden_dim),
-            nn.LeakyReLU(),
             GCNConv(2 * hidden_dim, 2 * hidden_dim),
+        ])
+        self.gcn_norms = nn.ModuleList([
+            nn.LayerNorm(hidden_dim),
             nn.LayerNorm(2 * hidden_dim),
-            nn.LeakyReLU(),
-        )
+            nn.LayerNorm(2 * hidden_dim),
+            nn.LayerNorm(2 * hidden_dim),
+        ])
+        self.gcn_act = nn.LeakyReLU()
 
         self.fc = nn.Sequential(
             nn.Linear(2 * hidden_dim, 2 * hidden_dim),
@@ -43,12 +42,16 @@ class DKDQNNetwork(nn.Module):
         )
 
     def forward(self, data_batch):
-        x, edge_index, batch = data_batch.x, data_batch.edge_index, data_batch.batch  
+        x, edge_index, batch = data_batch.x, data_batch.edge_index, data_batch.batch
 
-        x = self.gcn(x)
+        for gcn, norm in zip(self.gcn_layers, self.gcn_norms):
+            x = gcn(x, edge_index)
+            x = norm(x)
+            x = self.gcn_act(x)
+
         x = global_mean_pool(x, batch)
         x = self.fc(x)
-        
+
         return x
 
 class BootstrapDKDQNNetwork(nn.Module):

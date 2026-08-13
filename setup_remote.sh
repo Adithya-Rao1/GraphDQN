@@ -16,7 +16,7 @@ echo "==> Upgrading pip..."
 pip install --upgrade pip
 
 echo "==> Installing PyTorch (CUDA build)..."
-pip install torch torch_geometric
+pip install "torch>=2.6" torch_geometric
 
 echo "==> Installing graphdqn (pip install -e .)..."
 pip install -e .
