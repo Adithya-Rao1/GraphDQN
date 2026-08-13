@@ -159,7 +159,7 @@ class ModifyFunctionalGroup:
             site_atom = rwmol.GetAtomWithIdx(site_idx)
             site_symbol = site_atom.GetSymbol()
             
-            current_valence = site_atom.GetExplicitValence() + site_atom.GetImplicitValence()
+            current_valence = site_atom.GetValence(Chem.ValenceType.EXPLICIT) + site_atom.GetValence(Chem.ValenceType.IMPLICIT)
             available_valence = site_atom.GetTotalValence() - current_valence
             valence_required = self.functional_groups[fg_name][1]
             

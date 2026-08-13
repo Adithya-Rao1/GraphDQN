@@ -9,7 +9,7 @@ from rdkit.Chem import rdFingerprintGenerator, rdMolDescriptors
 import sys
 
 _fscores = None
-_DATA_ROOT = Path(__file__).resolve().parent / "GraphDQN_Data"
+_DATA_ROOT = Path(__file__).resolve().parent.parent / "GraphDQN_Data"
 
 class SyntheticAccessibility(object):
   @staticmethod
