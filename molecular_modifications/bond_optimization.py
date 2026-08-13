@@ -147,7 +147,7 @@ class ModifyBond:
                     valence_i = VALENCE_ELECTRON_COUNTS.get(atom_i.GetSymbol(), None)
                     valence_j = VALENCE_ELECTRON_COUNTS.get(atom_j.GetSymbol(), None)
                     if valence_i and valence_j:
-                        if atom_i.GetExplicitValence() < valence_i and atom_j.GetExplicitValence() < valence_j:
+                        if atom_i.GetValence(Chem.ValenceType.EXPLICIT) < valence_i and atom_j.GetValence(Chem.ValenceType.EXPLICIT) < valence_j:
                             optimal_sites.append((atom_i.GetIdx(), atom_j.GetIdx()))
 
         return optimal_sites
@@ -225,7 +225,7 @@ class ModifyBond:
             rwmol.AddBond(atom1_idx, atom2_idx, bond_type)
 
             for atom in rwmol.GetAtoms():
-                explicit_valence = atom.GetExplicitValence()
+                explicit_valence = atom.GetValence(Chem.ValenceType.EXPLICIT)
                 total_valence = atom.GetTotalValence()
 
                 if explicit_valence > total_valence:
@@ -266,7 +266,7 @@ class ModifyBond:
             rwmol.RemoveBond(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
             
             for atom in rwmol.GetAtoms():
-                explicit_valence = atom.GetExplicitValence()
+                explicit_valence = atom.GetValence(Chem.ValenceType.EXPLICIT)
                 total_valence = atom.GetTotalValence()
 
                 if explicit_valence > total_valence:

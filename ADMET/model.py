@@ -6,6 +6,16 @@ from descriptastorus.descriptors import rdNormalizedDescriptors
 import numpy as np
 import pandas as pd
 import torch
+
+_original_torch_load = torch.load
+
+def _torch_load_weights_only_false(*args, **kwargs):
+    kwargs.setdefault("weights_only", False)
+    return _original_torch_load(*args, **kwargs)
+
+
+torch.load = _torch_load_weights_only_false
+
 from chemprop.data import (
     MoleculeDataLoader,
     MoleculeDatapoint,
@@ -141,7 +151,7 @@ class ADMETModel:
         model_dirs = sorted(Path(models_dir).iterdir())
 
         # Load each ensemble of models
-        for model_dir in model_dirs[1:]:
+        for model_dir in model_dirs:
             # Get model paths for the ensemble in the directory
             model_paths = sorted(Path(model_dir).glob("**/*.pt"))
 
@@ -364,11 +374,3 @@ class ADMETModel:
             preds = preds.iloc[0].to_dict()
 
         return preds
-
-# model = ADMETModel()
-# preds = model.predict(["CCO", "CCCC"])
-# print(preds)
-# print("Type: ", type(preds))
-# print(len(preds))
-# print(preds.iloc[0]['DILI'])
-# # print(preds.keys())
