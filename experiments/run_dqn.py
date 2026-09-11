@@ -18,7 +18,7 @@ from synthetic_accessibility.sa_score import SyntheticAccessibility
 
 def run(target_name=DEFAULT_TARGET, seed=0, num_molecules=30, num_episodes=200,
         checkpoint_interval=50, run_id=None, use_wandb=False,
-        checkpoint_root='./checkpoints/dqn', results_root='./experiments/results'):
+        checkpoint_root='./dqn_checkpoints/dqn', results_root='./dqn_experiments/results'):
     run_id = run_id or f"dqn_{target_name}_seed{seed}_{time.strftime('%Y%m%d-%H%M%S')}"
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logger = setup_dqn_logger()
@@ -83,7 +83,7 @@ def run(target_name=DEFAULT_TARGET, seed=0, num_molecules=30, num_episodes=200,
                 break
 
         episode_rewards.append(final_reward)
-        eps_threshold = max(0.1, eps_threshold * hyp.eps_decay_factor)
+        eps_threshold = max(0.1, 1.0 - (episode/hyp.num_episodes) * 0.9)
 
         if agent.replay_buffer.__len__() >= hyp.batch_size and episode % hyp.update_interval == 0:
             update_target = episode % hyp.target_update_interval == 0
