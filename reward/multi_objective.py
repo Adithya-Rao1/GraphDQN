@@ -23,12 +23,41 @@ ADMET_PROPERTIES = [
 
 ADMET_OPTIM_DIRECTIONS = [1, 1, 1, 1, -1, 1, 1, 1, -1, -1, -1]
 
+ADMET_SCALE = {
+    "Lipinski": 2.0,
+    "Clearance_Hepatocyte_AZ": 50.0,
+    "Clearance_Microsome_AZ": 50.0,
+    "Half_Life_Obach": 24.0,
+    "LD50_Zhu": 2.5,
+}
+
+
+def _normalize_admet_property(prop: str, value: float, direction: int) -> float:
+    if prop in ADMET_SCALE:
+        value = value / (value + ADMET_SCALE[prop]) if value >= 0 else 0.0
+    return value if direction == 1 else (1.0 - value)
+
 
 def compute_admet_reward(admet_preds: dict) -> float:
-    return sum(
-        admet_preds[prop] if direction == 1 else (1 / admet_preds[prop])
+    scores = [
+        _normalize_admet_property(prop, admet_preds[prop], direction)
         for prop, direction in zip(ADMET_PROPERTIES, ADMET_OPTIM_DIRECTIONS)
-    )
+    ]
+    return sum(scores) / len(scores)
+
+
+BINDING_SCALE_UM = 10.0
+SA_SCORE_MIN = 1.0
+SA_SCORE_MAX = 10.0
+
+
+def _normalize_binding(binding_uM: float) -> float:
+    return BINDING_SCALE_UM / (binding_uM + BINDING_SCALE_UM)
+
+
+def _normalize_sa_score(sa_score: float) -> float:
+    clipped = min(max(sa_score, SA_SCORE_MIN), SA_SCORE_MAX)
+    return (SA_SCORE_MAX - clipped) / (SA_SCORE_MAX - SA_SCORE_MIN)
 
 
 def compute_reward(
@@ -57,6 +86,8 @@ def compute_reward(
 
     binding_uM = run_predictions(binding_model, target_seq, [smiles])[0]
     sa_score = sa_model.calculateScore(mol)
+    binding_score = _normalize_binding(binding_uM)
+    sa_reward = _normalize_sa_score(sa_score)
 
     if off_target_seq:
         off_target_uM = run_predictions(binding_model, off_target_seq, [smiles])[0]
@@ -65,16 +96,16 @@ def compute_reward(
         scale = selectivity_weight / 3
         reward = (
             (admet_weight - scale) * admet_reward
-            + (binding_weight - scale) * (1 / binding_uM)
-            + (synthetic_weight - scale) * (1 / sa_score)
+            + (binding_weight - scale) * binding_score
+            + (synthetic_weight - scale) * sa_reward
             + selectivity_weight * selectivity
         )
     else:
         selectivity = None
         reward = (
             admet_weight * admet_reward
-            + binding_weight * (1 / binding_uM)
-            + synthetic_weight * (1 / sa_score)
+            + binding_weight * binding_score
+            + synthetic_weight * sa_reward
         )
 
     return {
