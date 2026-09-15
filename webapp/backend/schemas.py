@@ -211,12 +211,39 @@ class FineTuneUsageOut(BaseModel):
     created_at: datetime
 
 
+class TrajectoryStepOut(BaseModel):
+    step_index: int
+    smiles: str
+    image_b64: Optional[str] = None
+    molblock_3d: Optional[str] = None
+    reward: float
+    admet_score: Optional[float] = None
+    binding_uM: Optional[float] = None
+    sa_score: Optional[float] = None
+    selectivity: Optional[float] = None
+
+
+class TrajectoryOut(BaseModel):
+    trajectory_index: int
+    steps: List[TrajectoryStepOut]
+
+
+class PromoteStepSelection(BaseModel):
+    trajectory_index: int
+    step_index: int
+
+
+class PromoteStepsRequest(BaseModel):
+    selections: List[PromoteStepSelection] = Field(min_length=1)
+
+
 class CandidateOut(BaseModel):
     id: int
     generation_batch_id: int
     training_run_id: int
     smiles: str
     image_b64: Optional[str] = None
+    molblock_3d: Optional[str] = None
     reward: float
     admet_score: Optional[float] = None
     binding_uM: Optional[float] = None

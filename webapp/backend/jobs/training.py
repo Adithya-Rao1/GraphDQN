@@ -1,9 +1,12 @@
+import os
+import shutil
 import threading
 import time
 from datetime import datetime, timezone
 
 from webapp.backend.config import CHECKPOINT_ROOT
 from webapp.backend.db import SessionLocal
+from webapp.backend.jobs.manager import job_manager
 from webapp.backend.models import FineTuneFeedback, GeneratedCandidate, OptimizationConfig, TrainingRun
 from webapp.backend.rl_bridge.dqn_runner import TrainingCancelled, train_dqn
 from webapp.backend.rl_bridge.finetune_dqn import finetune_dqn
@@ -21,6 +24,22 @@ def _reward_config_from(config: OptimizationConfig) -> RewardConfig:
     )
 
 
+def _finish_cancelled(db, run_id: int, error: Exception) -> None:
+    run = db.get(TrainingRun, run_id)
+    if job_manager.should_discard(run_id):
+        checkpoint_dir = run.checkpoint_dir
+        db.query(FineTuneFeedback).filter(FineTuneFeedback.training_run_id == run_id).delete()
+        db.delete(run)
+        db.commit()
+        if checkpoint_dir:
+            shutil.rmtree(checkpoint_dir, ignore_errors=True)
+    else:
+        run.status = "cancelled"
+        run.error_message = str(error)
+        run.finished_at = datetime.now(timezone.utc)
+        db.commit()
+
+
 def run_training_job(run_id: int, cancel_event: threading.Event) -> None:
     db = SessionLocal()
     try:
@@ -32,6 +51,11 @@ def run_training_job(run_id: int, cancel_event: threading.Event) -> None:
 
         config = run.config
         reward_config = _reward_config_from(config)
+
+        run_id_str = f"run{run.id}_{int(time.time())}"
+        checkpoint_dir = os.path.join(CHECKPOINT_ROOT, run_id_str)
+        run.checkpoint_dir = checkpoint_dir
+        db.commit()
 
         def progress_cb(current, total, _reward):
             run.progress_current = current
@@ -47,7 +71,7 @@ def run_training_job(run_id: int, cancel_event: threading.Event) -> None:
             num_episodes=run.num_episodes,
             max_steps=run.max_steps,
             checkpoint_interval=run.checkpoint_interval,
-            run_id=f"run{run.id}_{int(time.time())}",
+            run_id=run_id_str,
             checkpoint_root=CHECKPOINT_ROOT,
             progress_cb=progress_cb,
             cancel_event=cancel_event,
@@ -60,11 +84,7 @@ def run_training_job(run_id: int, cancel_event: threading.Event) -> None:
         run.finished_at = datetime.now(timezone.utc)
         db.commit()
     except TrainingCancelled as e:
-        run = db.get(TrainingRun, run_id)
-        run.status = "cancelled"
-        run.error_message = str(e)
-        run.finished_at = datetime.now(timezone.utc)
-        db.commit()
+        _finish_cancelled(db, run_id, e)
     except Exception as e:  # noqa: BLE001 --> job boundary, must not raise into the thread pool silently
         run = db.get(TrainingRun, run_id)
         run.status = "failed"
@@ -99,6 +119,11 @@ def run_finetune_job(run_id: int, cancel_event: threading.Event) -> None:
             for feedback, candidate in feedback_rows
         ]
 
+        run_id_str = f"run{run.id}_finetune_{int(time.time())}"
+        checkpoint_dir = os.path.join(CHECKPOINT_ROOT, run_id_str)
+        run.checkpoint_dir = checkpoint_dir
+        db.commit()
+
         def progress_cb(current, total, _reward):
             run.progress_current = current
             run.progress_total = total
@@ -115,7 +140,7 @@ def run_finetune_job(run_id: int, cancel_event: threading.Event) -> None:
             alpha=run.finetune_alpha,
             scored_candidates=scored_candidates,
             checkpoint_interval=run.checkpoint_interval,
-            run_id=f"run{run.id}_finetune_{int(time.time())}",
+            run_id=run_id_str,
             checkpoint_root=CHECKPOINT_ROOT,
             max_steps=run.max_steps,
             progress_cb=progress_cb,
@@ -129,11 +154,7 @@ def run_finetune_job(run_id: int, cancel_event: threading.Event) -> None:
         run.finished_at = datetime.now(timezone.utc)
         db.commit()
     except TrainingCancelled as e:
-        run = db.get(TrainingRun, run_id)
-        run.status = "cancelled"
-        run.error_message = str(e)
-        run.finished_at = datetime.now(timezone.utc)
-        db.commit()
+        _finish_cancelled(db, run_id, e)
     except Exception as e:  # noqa: BLE001
         run = db.get(TrainingRun, run_id)
         run.status = "failed"

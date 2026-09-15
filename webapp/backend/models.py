@@ -120,6 +120,8 @@ class GenerationBatch(Base):
     created_at = Column(DateTime, server_default=func.now())
     finished_at = Column(DateTime, nullable=True)
 
+    trajectories = Column(JSON, nullable=True)
+
 
 class GeneratedCandidate(Base):
     __tablename__ = "generated_candidates"

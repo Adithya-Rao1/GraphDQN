@@ -60,9 +60,10 @@ def get_run(run_id: int, db: Session = Depends(get_db), current_user: User = Dep
 
 
 @router.post("/{run_id}/cancel", response_model=TrainingRunOut)
-def cancel_run(run_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def cancel_run(run_id: int, discard: bool = False, db: Session = Depends(get_db),
+                current_user: User = Depends(get_current_user)):
     run = _owned_run_or_404(db, run_id, current_user.id)
-    job_manager.cancel(run_id)
+    job_manager.cancel(run_id, discard=discard)
     return run
 
 

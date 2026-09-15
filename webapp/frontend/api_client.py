@@ -89,8 +89,8 @@ class ApiClient:
     def get_run(self, run_id: int) -> dict:
         return self._request("GET", f"/api/runs/{run_id}")
 
-    def cancel_run(self, run_id: int) -> dict:
-        return self._request("POST", f"/api/runs/{run_id}/cancel")
+    def cancel_run(self, run_id: int, discard: bool = False) -> dict:
+        return self._request("POST", f"/api/runs/{run_id}/cancel", params={"discard": discard})
 
     def finetune_run(self, run_id: int, payload: dict) -> dict:
         return self._request("POST", f"/api/runs/{run_id}/finetune", json=payload)
@@ -100,6 +100,16 @@ class ApiClient:
 
     def get_generation_batch(self, batch_id: int) -> dict:
         return self._request("GET", f"/api/generation-batches/{batch_id}")
+
+    def list_generation_batches(self, training_run_id: int) -> list:
+        return self._request("GET", "/api/generation-batches", params={"training_run_id": training_run_id})
+
+    def get_trajectories(self, batch_id: int) -> list:
+        return self._request("GET", f"/api/generation-batches/{batch_id}/trajectories")
+
+    def promote_steps(self, batch_id: int, selections: list) -> list:
+        return self._request("POST", f"/api/generation-batches/{batch_id}/promote",
+                              json={"selections": selections})
 
     def list_candidates(self, generation_batch_id: Optional[int] = None, training_run_id: Optional[int] = None,
                          target_protein_id: Optional[int] = None, config_id: Optional[int] = None) -> list:

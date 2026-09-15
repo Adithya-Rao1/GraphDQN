@@ -3,6 +3,7 @@ import streamlit as st
 from api_client import ApiError, get_client
 from components.mol_card import render_candidate_card
 from components.progress import render_batch_progress, render_run_progress
+from components.trajectory_slideshow import render_trajectory_slideshow
 from style import inject_theme
 
 inject_theme()
@@ -18,7 +19,7 @@ st.title("Candidates")
 if st.session_state.get("active_finetune_run_id"):
     st.subheader("Fine-tuning in progress")
     run = render_run_progress(api, st.session_state.active_finetune_run_id)
-    if run["status"] in ("completed", "failed", "cancelled"):
+    if run["status"] in ("completed", "failed", "cancelled", "killed"):
         if st.button("Back to candidates"):
             st.session_state.active_finetune_run_id = None
             st.rerun()
@@ -34,9 +35,12 @@ run_options = {f"Run #{r['id']} (config {r['config_id']}, {'finetune' if r['is_f
 run_choice = st.selectbox("Trained run", list(run_options))
 selected_run_id = run_options[run_choice]
 
+# ---- generate ----
 if st.session_state.get("active_batch_id"):
     batch = render_batch_progress(api, st.session_state.active_batch_id)
     if batch["status"] in ("completed", "failed"):
+        if batch["status"] == "completed":
+            st.session_state[f"last_batch_{selected_run_id}"] = batch["id"]
         if st.button("Done"):
             st.session_state.active_batch_id = None
             st.rerun()
@@ -62,6 +66,25 @@ with st.expander("Generate new candidates", expanded=True):
             st.rerun()
         except ApiError as e:
             st.error(e.detail)
+
+batches = api.list_generation_batches(selected_run_id)
+completed_batches = [b for b in batches if b["status"] == "completed"]
+if completed_batches:
+    show_steps = st.checkbox("See the molecule at each step of generation (not just the final one)")
+    if show_steps:
+        batch_options = {
+            f"Batch #{b['id']} ({b['num_requested']} rollouts, {b['sampling_strategy']}, {b['created_at']})": b["id"]
+            for b in completed_batches
+        }
+        default_batch_id = st.session_state.get(f"last_batch_{selected_run_id}", completed_batches[0]["id"])
+        default_label = next((label for label, bid in batch_options.items() if bid == default_batch_id),
+                              list(batch_options)[0])
+        batch_label = st.selectbox("Batch to browse", list(batch_options),
+                                    index=list(batch_options).index(default_label))
+        traj_batch_id = batch_options[batch_label]
+        trajectories = api.get_trajectories(traj_batch_id)
+        render_trajectory_slideshow(api, traj_batch_id, trajectories)
+        st.divider()
 
 candidates = api.list_candidates(training_run_id=selected_run_id)
 

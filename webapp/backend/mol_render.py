@@ -2,6 +2,7 @@ import base64
 from typing import Optional, Sequence
 
 from rdkit import Chem
+from rdkit.Chem import AllChem
 from rdkit.Chem.Draw import rdMolDraw2D
 
 _TEXT = "#e8e8ec"
@@ -45,3 +46,26 @@ def mol_image_base64(
     rdMolDraw2D.PrepareAndDrawMolecule(drawer, mol, highlightAtoms=list(highlight_atoms or []))
     drawer.FinishDrawing()
     return base64.b64encode(drawer.GetDrawingText()).decode("ascii")
+
+
+def mol_to_molblock_3d(smiles: str) -> Optional[str]:
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        return None
+    mol = Chem.AddHs(mol)
+
+    params = AllChem.ETKDGv3()
+    params.randomSeed = 42
+    if AllChem.EmbedMolecule(mol, params) != 0:
+        if AllChem.EmbedMolecule(mol, useRandomCoords=True, randomSeed=42) != 0:
+            return None
+
+    try:
+        AllChem.MMFFOptimizeMolecule(mol)
+    except Exception:
+        try:
+            AllChem.UFFOptimizeMolecule(mol)
+        except Exception:
+            pass  # fall back to the unoptimized embedded geometry
+
+    return Chem.MolToMolBlock(mol)

@@ -1,6 +1,7 @@
 import threading
 from datetime import datetime, timezone
 
+from webapp.backend.candidate_provenance import provenance_kwargs
 from webapp.backend.db import SessionLocal
 from webapp.backend.jobs.training import _reward_config_from
 from webapp.backend.models import GeneratedCandidate, GenerationBatch, TrainingRun
@@ -18,7 +19,7 @@ def run_generation_job(batch_id: int, cancel_event: threading.Event) -> None:
         config = run.config
         reward_config = _reward_config_from(config)
 
-        results = generate_dqn_candidates(
+        results, trajectories = generate_dqn_candidates(
             checkpoint_path=batch.checkpoint_path_snapshot,
             start_smiles=config.starting_molecule.canonical_smiles,
             target_seq=config.target_protein.sequence,
@@ -30,6 +31,7 @@ def run_generation_job(batch_id: int, cancel_event: threading.Event) -> None:
             temperature=batch.temperature or 1.0,
             cancel_event=cancel_event,
         )
+        batch.trajectories = trajectories
 
         for result in results:
             db.add(GeneratedCandidate(
@@ -42,14 +44,7 @@ def run_generation_job(batch_id: int, cancel_event: threading.Event) -> None:
                 binding_uM=result["binding_uM"],
                 sa_score=result["sa_score"],
                 selectivity=result["selectivity"],
-                config_id=config.id,
-                config_name=config.name,
-                starting_molecule_id=config.starting_molecule_id,
-                starting_smiles=config.starting_molecule.canonical_smiles,
-                target_protein_id=config.target_protein_id,
-                target_protein_name=config.target_protein.name,
-                off_target_protein_id=config.off_target_protein_id,
-                off_target_protein_name=config.off_target_protein.name if config.off_target_protein else None,
+                **provenance_kwargs(config),
             ))
 
         batch.status = "completed"

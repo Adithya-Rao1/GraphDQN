@@ -7,7 +7,7 @@ from webapp.backend.db import get_db
 from webapp.backend.deps import get_current_user
 from webapp.backend.models import FineTuneFeedback, GeneratedCandidate, TrainingRun, User
 from webapp.backend.schemas import CandidateOut, CandidateScoreRequest, FineTuneUsageOut
-from webapp.backend.mol_render import mol_image_base64
+from webapp.backend.mol_render import mol_image_base64, mol_to_molblock_3d
 
 router = APIRouter(prefix="/api/candidates", tags=["candidates"])
 
@@ -15,6 +15,7 @@ router = APIRouter(prefix="/api/candidates", tags=["candidates"])
 def _to_out(db: Session, candidate: GeneratedCandidate) -> CandidateOut:
     out = CandidateOut.model_validate(candidate)
     out.image_b64 = mol_image_base64(candidate.smiles)
+    out.molblock_3d = mol_to_molblock_3d(candidate.smiles)
 
     usage_rows = (
         db.query(FineTuneFeedback, TrainingRun)

@@ -1,5 +1,5 @@
 import threading
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 import torch
 from rdkit import Chem
@@ -12,8 +12,11 @@ from ADMET.model import ADMETModel
 from binding_module.binding_affinity.plapt import Plapt
 from synthetic_accessibility.sa_score import SyntheticAccessibility
 from reward.multi_objective import RewardConfig, compute_reward
-from experiments.visualize_agent import new_atoms_since
-from webapp.backend.mol_render import mol_image_base64
+
+
+def _canonical(smiles: str) -> str:
+    mol = Chem.MolFromSmiles(smiles)
+    return Chem.MolToSmiles(mol) if mol is not None else smiles
 
 
 def generate_dqn_candidates(
@@ -28,7 +31,7 @@ def generate_dqn_candidates(
     temperature: float = 1.0,
     device=None,
     cancel_event: Optional[threading.Event] = None,
-) -> List[dict]:
+) -> Tuple[List[dict], List[List[dict]]]:
     device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     agent = DKDQNAgent(output_dim=1, device=device)
@@ -42,7 +45,24 @@ def generate_dqn_candidates(
 
     epsilon_threshold = 1.0 if sampling == "boltzmann" else 0.0
 
-    candidates = []
+    def score(smiles: str) -> dict:
+        canonical = _canonical(smiles)
+        result = compute_reward(
+            smiles=canonical, target_seq=target_seq, device=device, off_target_seq=off_target_seq,
+            admet_model=admet_model, binding_model=binding_model, sa_model=sa_model,
+            **reward_config.to_compute_reward_kwargs(),
+        )
+        return {
+            "smiles": canonical,
+            "reward": result["reward"],
+            "admet_score": result["admet"],
+            "binding_uM": result["binding_uM"],
+            "sa_score": result["sa_score"],
+            "selectivity": result["selectivity"],
+        }
+
+    final_candidates = []
+    trajectories = []
     for _ in range(num_candidates):
         if cancel_event is not None and cancel_event.is_set():
             break
@@ -61,32 +81,21 @@ def generate_dqn_candidates(
         )
         env.initialize()
 
-        final_smiles = start_smiles
+        trajectory_smiles = [start_smiles]
         for _step in range(max_steps):
             all_actions = list(env.get_valid_actions())
             obs = create_graph(all_actions)
             chosen = agent.get_action(obs, epsilon_threshold=epsilon_threshold, tau=temperature)
             action_smiles = all_actions[chosen]
             result = env.step(action_smiles)
-            final_smiles = action_smiles
+            trajectory_smiles.append(action_smiles)
             if result.terminated:
                 break
 
-        canonical = Chem.MolToSmiles(Chem.MolFromSmiles(final_smiles)) if Chem.MolFromSmiles(final_smiles) else final_smiles
-        score = compute_reward(
-            smiles=canonical, target_seq=target_seq, device=device, off_target_seq=off_target_seq,
-            admet_model=admet_model, binding_model=binding_model, sa_model=sa_model,
-            **reward_config.to_compute_reward_kwargs(),
-        )
-        highlight = new_atoms_since(start_smiles, canonical)
-        candidates.append({
-            "smiles": canonical,
-            "image_b64": mol_image_base64(canonical, highlight_atoms=highlight),
-            "reward": score["reward"],
-            "admet_score": score["admet"],
-            "binding_uM": score["binding_uM"],
-            "sa_score": score["sa_score"],
-            "selectivity": score["selectivity"],
-        })
+        trajectory_scored = [score(smi) for smi in trajectory_smiles]
+        for i, step in enumerate(trajectory_scored):
+            step["step_index"] = i
+        trajectories.append(trajectory_scored)
+        final_candidates.append(trajectory_scored[-1])
 
-    return candidates
+    return final_candidates, trajectories

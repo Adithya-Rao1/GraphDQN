@@ -16,10 +16,8 @@ st.title("Optimize Molecules")
 
 if st.session_state.get("active_run_id"):
     st.subheader("Training in progress")
-    if st.button("Cancel run"):
-        api.cancel_run(st.session_state.active_run_id)
     run = render_run_progress(api, st.session_state.active_run_id)
-    if run["status"] in ("completed", "failed", "cancelled"):
+    if run["status"] in ("completed", "failed", "cancelled", "killed"):
         if st.button("Start another run"):
             st.session_state.active_run_id = None
             st.rerun()

@@ -19,6 +19,13 @@ _CSS = f"""
   }}
   [data-testid="stHeader"] {{ background: transparent !important; }}
 
+  /* Streamlit's built-in "running" indicator -- an animated figure icon
+     (cycles through several pictograms) shown top-right during script
+     execution/rerun. Our polling components (components/progress.py) rerun
+     every couple seconds while a job is active, so this would otherwise be
+     almost constantly animating. Hidden per user request. */
+  [data-testid="stStatusWidget"] {{ display: none !important; }}
+
   h1, h2, h3, h4, h5, h6 {{ color: {TEXT}; font-weight: 600; }}
   p, label, span, div {{ color: {TEXT}; }}
 
