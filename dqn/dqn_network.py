@@ -2,23 +2,34 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch_geometric.nn import GCNConv, global_mean_pool
+from torch_geometric.nn import GINEConv, global_mean_pool
 import numpy as np
 from dqn.replay_buffer import ReplayBuffer
 import dqn.dqn_hyperparams as dqn_hyperparams
 import random
-from dqn.utils import create_graph, obs_to_loader
+from dqn.utils import create_graph, obs_to_loader, boltzmann_sample
+
+
+# (bond-type one-hot [4] + conjugation [1] + in-ring [1] + stereo one-hot [4]).
+EDGE_FEATURE_DIM = 10
+
+
+def _gine_mlp(in_dim, out_dim):
+    return nn.Sequential(
+        nn.Linear(in_dim, out_dim),
+        nn.LeakyReLU(),
+        nn.Linear(out_dim, out_dim),
+    )
 
 
 class DKDQNNetwork(nn.Module):
-    def __init__(self, output_dim=15, hidden_dim=256, feature_dim=42):
+    def __init__(self, output_dim=1, hidden_dim=256, feature_dim=45, edge_dim=EDGE_FEATURE_DIM):
         super(DKDQNNetwork, self).__init__()
 
+        layer_dims = [feature_dim, hidden_dim, 2 * hidden_dim, 2 * hidden_dim, 2 * hidden_dim]
         self.gcn_layers = nn.ModuleList([
-            GCNConv(feature_dim, hidden_dim),
-            GCNConv(hidden_dim, 2 * hidden_dim),
-            GCNConv(2 * hidden_dim, 2 * hidden_dim),
-            GCNConv(2 * hidden_dim, 2 * hidden_dim),
+            GINEConv(_gine_mlp(layer_dims[i], layer_dims[i + 1]), edge_dim=edge_dim)
+            for i in range(4)
         ])
         self.gcn_norms = nn.ModuleList([
             nn.LayerNorm(hidden_dim),
@@ -42,10 +53,12 @@ class DKDQNNetwork(nn.Module):
         )
 
     def forward(self, data_batch):
-        x, edge_index, batch = data_batch.x, data_batch.edge_index, data_batch.batch
+        x, edge_index, edge_attr, batch = (
+            data_batch.x, data_batch.edge_index, data_batch.edge_attr, data_batch.batch
+        )
 
         for gcn, norm in zip(self.gcn_layers, self.gcn_norms):
-            x = gcn(x, edge_index)
+            x = gcn(x, edge_index, edge_attr=edge_attr)
             x = norm(x)
             x = self.gcn_act(x)
 
@@ -94,41 +107,42 @@ class DKDQNAgent(object):
         self.replay_buffer = ReplayBuffer(dqn_hyperparams.replay_buffer_size)
         self.optimizer = getattr(optim, dqn_hyperparams.optimizer)(self.qn.parameters(), lr=dqn_hyperparams.learning_rate)
 
-    def get_action(self, observations, epsilon_threshold):
+    def get_action(self, observations, epsilon_threshold, tau=1.0):
         loader = obs_to_loader(observations, batch_size=1)
-        
-        if np.random.uniform() < epsilon_threshold:
-            action = np.random.randint(0, len(loader.dataset))
-        else:
-            q_values = []
+
+        q_values = []
+        with torch.no_grad():
             for batch in loader:
                 q_value = self.target_qn.forward(batch.to(self.device))
                 q_values.append(q_value)
-            
-            q_values = torch.cat(q_values, dim=0)
-            q_value = torch.max(q_values, dim=-1)[0]
 
+        q_values = torch.cat(q_values, dim=0)
+        q_value = torch.max(q_values, dim=-1)[0]
+
+        if np.random.uniform() < epsilon_threshold:
+            action = boltzmann_sample(q_value, tau)
+        else:
             action = torch.argmax(q_value).item()
-        
+
         return action
     
     def update_params(self, batch_size, gamma, polyak, update_target=False):
         states, _, rewards, next_states, dones = self.replay_buffer.sample(batch_size)
-        
-        q_t = torch.zeros(batch_size, 1, requires_grad=False).to(self.device)
-        v_tp1 = torch.zeros(batch_size, 1, requires_grad=False).to(self.device)
 
+        q_t = torch.zeros(batch_size, 1).to(self.device)
         s_loader = obs_to_loader(create_graph(states), batch_size)
-        ns_loader = obs_to_loader(create_graph(next_states), batch_size)
-
         for batch in s_loader:
-            q_t_batch = self.target_qn.forward(batch.to(self.device))
-            q_t = torch.max(q_t_batch, dim=1, keepdim=True)[0]  
-            
-        for batch in ns_loader:
-            v_tp1_batch = self.target_qn.forward(batch.to(self.device))
-            v_tp1 = torch.max(v_tp1_batch, dim=1, keepdim=True)[0] 
-        
+            q_t_batch = self.qn.forward(batch.to(self.device))
+            q_t = torch.max(q_t_batch, dim=1, keepdim=True)[0]
+
+        v_tp1 = torch.zeros(batch_size, 1).to(self.device)
+        with torch.no_grad():
+            for i, candidates in enumerate(next_states):
+                candidate_loader = obs_to_loader(create_graph(candidates), batch_size=len(candidates))
+                for batch in candidate_loader:
+                    v_values = self.target_qn.forward(batch.to(self.device))
+                    v_tp1[i] = torch.max(v_values)
+
         rewards = torch.FloatTensor(rewards).reshape(q_t.shape).to(self.device)
         dones = torch.FloatTensor(dones).reshape(q_t.shape).to(self.device)
         
