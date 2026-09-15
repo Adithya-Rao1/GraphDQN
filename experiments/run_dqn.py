@@ -26,7 +26,7 @@ def run(target_name=DEFAULT_TARGET, seed=0, num_molecules=30, num_episodes=200,
     target_seq = TARGETS[target_name]
     start_mols = sample_pilot_molecules(n=num_molecules, seed=seed)
 
-    agent = DKDQNAgent(output_dim=15, device=device)
+    agent = DKDQNAgent(output_dim=1, device=device)
 
     admet_model = ADMETModel(device)
     binding_model = Plapt(device=str(device))
@@ -47,10 +47,16 @@ def run(target_name=DEFAULT_TARGET, seed=0, num_molecules=30, num_episodes=200,
     checkpoint_dir = os.path.join(checkpoint_root, run_id)
     batch_losses = []
     episode_rewards = []
-    eps_threshold = hyp.eps_threshold
+    eps_start = hyp.eps_threshold
+    eps_end = 0.1
+    tau_start = 2.0
+    tau_end = 0.1
     start_time = time.time()
 
     for episode in range(num_episodes):
+        progress = episode / num_episodes
+        eps_threshold = max(eps_end, eps_start - progress * (eps_start - eps_end))
+        tau = max(tau_end, tau_start - progress * (tau_start - tau_end))
         start_mol = start_mols[episode % len(start_mols)]
         environment = MultiObjectiveRewardEnv(
             discount_factor=hyp.discount_factor,
@@ -68,7 +74,7 @@ def run(target_name=DEFAULT_TARGET, seed=0, num_molecules=30, num_episodes=200,
         for step in range(hyp.max_steps):
             all_actions = list(environment.get_valid_actions())
             obs = create_graph(all_actions)
-            chosen_act = agent.get_action(obs, eps_threshold)
+            chosen_act = agent.get_action(obs, eps_threshold, tau)
             action_obs = all_actions[chosen_act]
             result = environment.step(action_obs)
             _, reward, done = result
@@ -83,7 +89,6 @@ def run(target_name=DEFAULT_TARGET, seed=0, num_molecules=30, num_episodes=200,
                 break
 
         episode_rewards.append(final_reward)
-        eps_threshold = max(0.1, 1.0 - (episode/hyp.num_episodes) * 0.9)
 
         if agent.replay_buffer.__len__() >= hyp.batch_size and episode % hyp.update_interval == 0:
             update_target = episode % hyp.target_update_interval == 0
