@@ -81,6 +81,29 @@ REACTION_OUTCOMES = {
     ('amino', 'carbonyl'): 'imine_formation'
 }
 
+FG_FRAGMENT_SMILES = {
+    'methyl': 'C',
+    'hydroxyl': 'O',
+    'amino': 'N',
+    'carboxyl': 'C(=O)O',
+    'carbonyl': 'C=O',
+    'aldehyde': 'C=O',
+    'ketone': 'C(=O)C',
+    'ether': 'OC',
+    'ester': 'C(=O)OC',
+    'amide': 'C(=O)N',
+    'nitro': '[N+](=O)[O-]',
+    'cyano': 'C#N',
+    'thiol': 'S',
+    'thioether': 'SC',
+    'halogen': 'Cl',
+    'azide': 'N=[N+]=[N-]',
+    'sulfonamide': 'S(=O)(=O)N',
+    'sulfone': 'S(=O)(=O)C',
+    'sulfoxide': 'S(=O)C',
+    'phosphate': 'P(=O)(O)O',
+}
+
 class ModifyFunctionalGroup:
     def __init__(self, 
                  logger=None,
@@ -133,382 +156,192 @@ class ModifyFunctionalGroup:
             if self.log and self.logger:
                 self.logger.error(f"Unknown functional group: {fg_name}")
             return []
-        
+    
         rwmol = Chem.RWMol(mol)
+        rwmol.UpdatePropertyCache(strict=False)
+
         attachment_sites = []
         for atom in rwmol.GetAtoms():
-            if atom.GetSymbol() in self.functional_groups[fg_name][1]:
+            if atom.GetAtomicNum() == 1:
+                continue
+            if atom.GetTotalNumHs() >= 1:
                 attachment_sites.append(atom.GetIdx())
-        
+
         return attachment_sites
+
+    def _match_single_attachment(self, mol: Chem.Mol, fg_name: str, instance_idx: int = 0):
+        pattern = Chem.MolFromSmarts(self.functional_groups[fg_name][0])
+        if pattern is None:
+            return None
+
+        matches = mol.GetSubstructMatches(pattern)
+        if instance_idx >= len(matches):
+            return None
+
+        match_atoms = matches[instance_idx]
+        match_set = set(match_atoms)
+        external = set()
+        for idx in match_atoms:
+            for bond in mol.GetAtomWithIdx(idx).GetBonds():
+                other = bond.GetOtherAtomIdx(idx)
+                if other not in match_set:
+                    external.add(other)
+
+        if len(external) != 1:
+            return None
+
+        return match_atoms, next(iter(external))
+
+    def _remove_atoms(self, mol: Chem.Mol, match_atoms, attachment_idx: int):
+        em = Chem.EditableMol(Chem.RWMol(mol))
+        remove_indices = sorted(set(match_atoms), reverse=True)
+        for idx in remove_indices:
+            em.RemoveAtom(idx)
+        new_attachment_idx = attachment_idx - sum(1 for idx in remove_indices if idx < attachment_idx)
+
+        new_mol = em.GetMol()
+        try:
+            Chem.SanitizeMol(new_mol)
+            Chem.AssignStereochemistry(new_mol, cleanIt=True, force=True)
+        except Exception:
+            return None
+        return new_mol, new_attachment_idx
+
+    def _add_fragment(self, mol: Chem.Mol, fg_name: str, attachment_idx: int) -> Optional[str]:
+        if fg_name not in FG_FRAGMENT_SMILES:
+            if self.log and self.logger:
+                self.logger.error(f"No fragment defined for functional group {fg_name}")
+            return None
+
+        fragment = Chem.MolFromSmiles(FG_FRAGMENT_SMILES[fg_name])
+        if fragment is None:
+            return None
+
+        combined = Chem.RWMol(Chem.CombineMols(mol, fragment))
+        frag_attach_idx = mol.GetNumAtoms()
+
+        try:
+            combined.AddBond(attachment_idx, frag_attach_idx, Chem.BondType.SINGLE)
+            Chem.SanitizeMol(combined)
+            Chem.AssignStereochemistry(combined, cleanIt=True, force=True)
+            return Chem.MolToSmiles(Chem.Mol(combined))
+        except Exception as e:
+            if self.log and self.logger:
+                self.logger.error(f"Failed to attach {fg_name} at site {attachment_idx}: {str(e)}")
+            return None
 
     def add_functional_group(self, mol: Union[Chem.Mol, Chem.RWMol], fg_name: str, site_idx: int) -> Optional[str]:
         if not mol:
             if self.log and self.logger:
                 self.logger.error("Invalid molecule provided")
             return None
-            
+
         if fg_name not in self.functional_groups:
             if self.log and self.logger:
                 self.logger.error(f"Unknown functional group: {fg_name}")
             return None
-        
-        rwmol = Chem.RWMol(mol)
-        
+
+        mol = Chem.Mol(mol)
+        mol.UpdatePropertyCache(strict=False)
+
         try:
-            site_atom = rwmol.GetAtomWithIdx(site_idx)
-            site_symbol = site_atom.GetSymbol()
-            
-            current_valence = site_atom.GetValence(Chem.ValenceType.EXPLICIT) + site_atom.GetValence(Chem.ValenceType.IMPLICIT)
-            available_valence = site_atom.GetTotalValence() - current_valence
-            valence_required = self.functional_groups[fg_name][1]
-            
-            if available_valence < valence_required:
+            site_atom = mol.GetAtomWithIdx(site_idx)
+            if site_atom.GetTotalNumHs() < 1:
                 if self.log and self.logger:
                     self.logger.error(f"Insufficient valence at site {site_idx} for {fg_name}")
-                return Chem.MolToSmiles(mol)
-            
-            fg_smarts = self.functional_groups[fg_name][0]
-            fg_mol = None
-            
-            fg_mapping = {
-                'methyl': '[*:1]-[CH3]',
-                'hydroxyl': '[*:1]-[OH]',
-                'amino': '[*:1]-[NH2]',
-                'carboxyl': '[*:1]-C(=O)O',
-                'carbonyl': '[*:1]C=O',
-                'aldehyde': '[*:1]-C=O',
-                'ketone': '[*:1]-C(=O)-[#6]',
-                'ether': '[*:1]-O-[CH3]',
-                'ester': '[*:1]-C(=O)O[CH3]',
-                'amide': '[*:1]-C(=O)N',
-                'nitro': '[*:1]-[N+](=O)[O-]',
-                'cyano': '[*:1]-C#N',
-                'thiol': '[*:1]-[SH]',
-                'halogen': '[*:1]-Cl', 
-                'azide': '[*:1]-N=[N+]=[N-]',
-                'sulfonamide': '[*:1]-S(=O)(=O)N',
-                'sulfone': '[*:1]-S(=O)(=O)-[#6]',
-                'phosphate': '[*:1]-P(=O)(O)O'
-            }
-            
-            if fg_name in fg_mapping:
-                rxn_smarts = fg_mapping[fg_name]
-                rxn = AllChem.ReactionFromSmarts(f"[*:2][{site_symbol}:1]>>[{site_symbol}:1]{rxn_smarts.replace('[*:1]', '')}")
-                products = rxn.RunReactants((rwmol,))
-                
-                if products and len(products) > 0 and len(products[0]) > 0:
-                    modified_mol = products[0][0]
-                    
-                    try:
-                        Chem.SanitizeMol(modified_mol)
-                        Chem.AssignStereochemistry(modified_mol, cleanIt=True, force=True)
-                        if self.log and self.logger:
-                            self.logger.info(f"Successfully added {fg_name} at site {site_idx}")
-                        return Chem.MolToSmiles(modified_mol)
-                    except Exception as e:
-                        if self.log and self.logger:
-                            self.logger.error(f"Failed to sanitize after adding {fg_name}: {str(e)}")
-                        return Chem.MolToSmiles(mol)
-                else:
-                    if self.log and self.logger:
-                        self.logger.error(f"Reaction failed for adding {fg_name}")
-                    return Chem.MolToSmiles(mol)
-            else:
-                if self.log and self.logger:
-                    self.logger.error(f"No mapping available for functional group {fg_name}")
-                return Chem.MolToSmiles(mol)
-                
+                return None
+
+            result = self._add_fragment(mol, fg_name, site_idx)
+            if result is not None and self.log and self.logger:
+                self.logger.info(f"Successfully added {fg_name} at site {site_idx}")
+            return result
+
         except Exception as e:
             if self.log and self.logger:
                 self.logger.error(f"Error adding functional group: {str(e)}")
-            return Chem.MolToSmiles(mol)
-            
+            return None
+
     def remove_functional_group(self, mol: Union[Chem.Mol, Chem.RWMol], fg_name: str, instance_idx: int = 0) -> Optional[str]:
         if not mol:
             if self.log and self.logger:
                 self.logger.error("Invalid molecule provided")
             return None
-            
+
         if fg_name not in self.functional_groups:
             if self.log and self.logger:
                 self.logger.error(f"Unknown functional group: {fg_name}")
             return None
-        
-        fg_matches = self.identify_functional_groups(mol)
-        
-        if fg_name not in fg_matches or instance_idx >= len(fg_matches[fg_name]):
-            if self.log and self.logger:
-                self.logger.error(f"Functional group {fg_name} instance {instance_idx} not found")
-            return Chem.MolToSmiles(mol)
-        
-        fg_central_atom = fg_matches[fg_name][instance_idx]
 
-        rwmol = Chem.RWMol(mol)
-        
+        mol = Chem.Mol(mol)
+
         try:
-            removal_mapping = {
-                'methyl': self._remove_simple_group,
-                'hydroxyl': self._remove_simple_group,
-                'amino': self._remove_simple_group,
-                'carboxyl': self._remove_complex_group,
-                'carbonyl': self._remove_complex_group,
-                'aldehyde': self._remove_complex_group,
-                'ketone': self._remove_complex_group,
-                'ether': self._remove_complex_group,
-                'ester': self._remove_complex_group,
-                'amide': self._remove_complex_group,
-                'nitro': self._remove_simple_group,
-                'cyano': self._remove_simple_group,
-                'thiol': self._remove_simple_group,
-                'halogen': self._remove_simple_group,
-                'azide': self._remove_simple_group,
-                'sulfonamide': self._remove_complex_group
-            }
-            
-            if fg_name in removal_mapping:
-                modified_smiles = removal_mapping[fg_name](rwmol, fg_name, fg_central_atom)
-            else:
-                modified_smiles = self._remove_and_add_hydrogen(rwmol, fg_central_atom)
-                
-            if self.log and self.logger and modified_smiles != Chem.MolToSmiles(mol):
+            match = self._match_single_attachment(mol, fg_name, instance_idx)
+            if match is None:
+                if self.log and self.logger:
+                    self.logger.error(f"Functional group {fg_name} instance {instance_idx} not found or not singly-attached")
+                return None
+
+            match_atoms, attachment_idx = match
+            removed = self._remove_atoms(mol, match_atoms, attachment_idx)
+            if removed is None:
+                return None
+
+            new_mol, _ = removed
+            if self.log and self.logger:
                 self.logger.info(f"Successfully removed {fg_name} instance {instance_idx}")
-                
-            return modified_smiles
-            
+            return Chem.MolToSmiles(new_mol)
+
         except Exception as e:
             if self.log and self.logger:
                 self.logger.error(f"Error removing functional group: {str(e)}")
-            return Chem.MolToSmiles(mol)
-    
-    def _remove_simple_group(self, rwmol: Chem.RWMol, fg_name: str, atom_idx: int) -> str:
-        smarts = self.functional_groups[fg_name][0]
-        atom = rwmol.GetAtomWithIdx(atom_idx)
-        
-        pattern = Chem.MolFromSmarts(smarts)
-        matches = rwmol.GetSubstructMatches(pattern)
-        
-        target_match = None
-        for match in matches:
-            if atom_idx in match:
-                target_match = match
-                break
-        
-        if target_match is None:
-            return Chem.MolToSmiles(rwmol)
-            
-        mol_with_map = Chem.RWMol(rwmol)
-        for i, idx in enumerate(target_match):
-            mol_with_map.GetAtomWithIdx(idx).SetProp("molAtomMapNumber", str(i+1))
-        
-        attachment_idx = None
-        for idx in target_match:
-            atom = mol_with_map.GetAtomWithIdx(idx)
-            for neighbor in atom.GetNeighbors():
-                if neighbor.GetIdx() not in target_match:
-                    attachment_idx = idx
-                    break
-            if attachment_idx is not None:
-                break
-        
-        if attachment_idx is None:
-            return Chem.MolToSmiles(rwmol)
-        
-        reactant_smiles = Chem.MolToSmiles(mol_with_map)
-        rxn = AllChem.ReactionFromSmarts(f"{reactant_smiles}>>[*:1][H]")
-        products = rxn.RunReactants((rwmol,))
-        
-        if products and len(products) > 0 and len(products[0]) > 0:
-            modified_mol = products[0][0]
-            try:
-                Chem.SanitizeMol(modified_mol)
-                Chem.AssignStereochemistry(modified_mol, cleanIt=True, force=True)
-                return Chem.MolToSmiles(modified_mol)
-            except Exception:
-                return Chem.MolToSmiles(rwmol)
-        else:
-            return self._remove_and_add_hydrogen(rwmol, atom_idx)
-    
-    def _remove_complex_group(self, rwmol: Chem.RWMol, fg_name: str, atom_idx: int) -> str:
-        removal_patterns = {
-            'carboxyl': ['[C:1](=O)[OH]>>[*:1][H]', '[C](=O)[OH:1]>>[*:1][H]'],
-            'carbonyl': ['[C:1]=O>>[*:1][H]', '[C]=O>>[H]'],
-            'ester': ['[C:1](=O)[O][#6]>>[*:1][H]', '[C](=O)[O:1][#6]>>[*:1][H]'],
-            'amide': ['[C:1](=O)[N]>>[*:1][H]', '[C](=O)[N:1]>>[*:1][H]'],
-            'sulfonamide': ['[S:1](=O)(=O)[N]>>[*:1][H]', '[S](=O)(=O)[N:1]>>[*:1][H]']
-        }
-        
-        if fg_name not in removal_patterns:
-            return self._remove_and_add_hydrogen(rwmol, atom_idx)
-        
-        for pattern in removal_patterns[fg_name]:
-            rxn = AllChem.ReactionFromSmarts(pattern)
-            products = rxn.RunReactants((rwmol,))
-            
-            if products and len(products) > 0 and len(products[0]) > 0:
-                modified_mol = products[0][0]
-                try:
-                    Chem.SanitizeMol(modified_mol)
-                    Chem.AssignStereochemistry(modified_mol, cleanIt=True, force=True)
-                    return Chem.MolToSmiles(modified_mol)
-                except Exception:
-                    continue
-        
-        return self._remove_and_add_hydrogen(rwmol, atom_idx)
-    
-    def _remove_and_add_hydrogen(self, rwmol: Chem.RWMol, atom_idx: int) -> str:
-        original_mol = Chem.Mol(rwmol)
-        
-        atom = rwmol.GetAtomWithIdx(atom_idx)
-        attachments = []
-        
-        for neighbor in atom.GetNeighbors():
-            attachments.append(neighbor.GetIdx())
-        
-        for attach_idx in attachments:
-            h_atom = Chem.Atom('H')
-            new_idx = rwmol.AddAtom(h_atom)
-            
-            rwmol.AddBond(attach_idx, new_idx, Chem.BondType.SINGLE)
-        
-        try:
-            rwmol.RemoveAtom(atom_idx)
-            Chem.SanitizeMol(rwmol)
-            Chem.AssignStereochemistry(rwmol, cleanIt=True, force=True)
-            return Chem.MolToSmiles(rwmol)
-        except Exception:
-            return Chem.MolToSmiles(original_mol)
-    
-    def modify_functional_group(self, mol: Union[Chem.Mol, Chem.RWMol], 
-                                 source_fg: str, target_fg: str, 
+            return None
+
+    def modify_functional_group(self, mol: Union[Chem.Mol, Chem.RWMol],
+                                 source_fg: str, target_fg: str,
                                  instance_idx: int = 0) -> Optional[str]:
         if not mol:
             if self.log and self.logger:
                 self.logger.error("Invalid molecule provided")
             return None
-            
+
         if source_fg not in self.functional_groups or target_fg not in self.functional_groups:
             if self.log and self.logger:
                 self.logger.error(f"Unknown functional group: {source_fg} or {target_fg}")
             return None
-        
-        fg_matches = self.identify_functional_groups(mol)
-        
-        if source_fg not in fg_matches or instance_idx >= len(fg_matches[source_fg]):
-            if self.log and self.logger:
-                self.logger.error(f"Functional group {source_fg} instance {instance_idx} not found")
-            return Chem.MolToSmiles(mol)
-        
-        source_atom_idx = fg_matches[source_fg][instance_idx]
-        
+
+        mol = Chem.Mol(mol)
+
         compatibility = self._check_fg_compatibility(mol, source_fg, target_fg)
-        if compatibility == 0:  
+        if compatibility == 0:
             if self.log and self.logger:
                 self.logger.error(f"Incompatible transformation: {source_fg} to {target_fg}")
-            return Chem.MolToSmiles(mol)
-        
-        transform_mapping = {
-            # Format -- (source, target): reaction SMARTS
-            ('hydroxyl', 'amino'): '[O:1][H]>>[N:1][H][H]',
-            ('hydroxyl', 'thiol'): '[O:1][H]>>[S:1][H]',
-            ('hydroxyl', 'methyl'): '[O:1][H]>>[C:1][H][H][H]',
-            ('hydroxyl', 'halogen'): '[O:1][H]>>[Cl:1]',
-            ('amino', 'hydroxyl'): '[N:1][H][H]>>[O:1][H]',
-            ('amino', 'amide'): '[N:1][H][H]>>[N:1]C(=O)[H]',
-            ('carboxyl', 'ester'): '[C:1](=O)[O][H]>>[C:1](=O)[O][C][H][H][H]',
-            ('carboxyl', 'amide'): '[C:1](=O)[O][H]>>[C:1](=O)[N][H][H]',
-            ('aldehyde', 'ketone'): '[C:1](=O)[H]>>[C:1](=O)[C][H][H][H]',
-            ('aldehyde', 'carboxyl'): '[C:1](=O)[H]>>[C:1](=O)[O][H]',
-            ('ketone', 'alcohol'): '[C:1](=O)[#6]>>[C:1]([O][H])[#6]',
-            ('thiol', 'hydroxyl'): '[S:1][H]>>[O:1][H]',
-            ('cyano', 'carboxyl'): '[C:1]#N>>[C:1](=O)[O][H]',
-            ('nitro', 'amino'): '[N+:1](=O)[O-]>>[N:1][H][H]',
-            ('ester', 'carboxyl'): '[C:1](=O)[O][#6]>>[C:1](=O)[O][H]',
-            ('amide', 'carboxyl'): '[C:1](=O)[N]>>[C:1](=O)[O][H]'
-        }
-        
-        key = (source_fg, target_fg)
-        
-        if key in transform_mapping:
-            rxn_smarts = transform_mapping[key]
-            rxn = AllChem.ReactionFromSmarts(rxn_smarts)
-            
-            products = rxn.RunReactants((mol,))
-            if products and len(products) > 0 and len(products[0]) > 0:
-                modified_mol = products[0][0]
-                try:
-                    Chem.SanitizeMol(modified_mol)
-                    Chem.AssignStereochemistry(modified_mol, cleanIt=True, force=True)
-                    if self.log and self.logger:
-                        self.logger.info(f"Successfully transformed {source_fg} to {target_fg}")
-                    return Chem.MolToSmiles(modified_mol)
-                except Exception as e:
-                    if self.log and self.logger:
-                        self.logger.error(f"Failed to sanitize after transformation: {str(e)}")
-        
-        rwmol = Chem.RWMol(mol)
-        
-        attachment_idx = None
-        source_atom = rwmol.GetAtomWithIdx(source_atom_idx)
-        
-        for neighbor in source_atom.GetNeighbors():
-            if neighbor.GetIdx() not in fg_matches.get(source_fg, []):
-                attachment_idx = neighbor.GetIdx()
-                break
-        
-        if attachment_idx is None:
-            if self.log and self.logger:
-                self.logger.error("Could not identify attachment point for functional group")
-            return Chem.MolToSmiles(mol)
-        
-        temp_mol = Chem.Mol(rwmol)
-        removed_smiles = self.remove_functional_group(temp_mol, source_fg, instance_idx)
-        if removed_smiles == Chem.MolToSmiles(mol):
-            if self.log and self.logger:
-                self.logger.error(f"Failed to remove {source_fg}")
-            return Chem.MolToSmiles(mol)
-            
-        temp_mol = Chem.MolFromSmiles(removed_smiles)
-        if not temp_mol:
-            return Chem.MolToSmiles(mol)
-            
-        atom_mapping = {}
-        for idx in range(min(mol.GetNumAtoms(), temp_mol.GetNumAtoms())):
-            if idx < mol.GetNumAtoms() and idx < temp_mol.GetNumAtoms():
-                atom1 = mol.GetAtomWithIdx(idx)
-                atom2 = temp_mol.GetAtomWithIdx(idx)
-                if atom1.GetSymbol() == atom2.GetSymbol():
-                    atom_mapping[idx] = idx
-        
-        new_attachment_idx = None
-        for old_idx, new_idx in atom_mapping.items():
-            if old_idx == attachment_idx:
-                new_attachment_idx = new_idx
-                break
-                
-        if new_attachment_idx is None:
-            if self.log and self.logger:
-                self.logger.error("Could not find equivalent attachment point in modified molecule")
-            return Chem.MolToSmiles(mol)
-            
-        final_smiles = self.add_functional_group(temp_mol, target_fg, new_attachment_idx)
-        
-        if final_smiles is None:
-            if self.log and self.logger:
-                self.logger.error(f"Failed to add {target_fg}")
-            return Chem.MolToSmiles(mol)
-            
+            return None
+
         try:
-            final_mol = Chem.MolFromSmiles(final_smiles)
-            Chem.SanitizeMol(final_mol)
-            if self.log and self.logger:
+            match = self._match_single_attachment(mol, source_fg, instance_idx)
+            if match is None:
+                if self.log and self.logger:
+                    self.logger.error(f"Functional group {source_fg} instance {instance_idx} not found or not singly-attached")
+                return None
+
+            match_atoms, attachment_idx = match
+            removed = self._remove_atoms(mol, match_atoms, attachment_idx)
+            if removed is None:
+                if self.log and self.logger:
+                    self.logger.error(f"Failed to remove {source_fg}")
+                return None
+
+            new_mol, new_attachment_idx = removed
+            result = self._add_fragment(new_mol, target_fg, new_attachment_idx)
+            if result is not None and self.log and self.logger:
                 self.logger.info(f"Successfully converted {source_fg} to {target_fg}")
-            return final_smiles
+            return result
+
         except Exception as e:
             if self.log and self.logger:
-                self.logger.error(f"Final molecule invalid: {str(e)}")
-            return Chem.MolToSmiles(mol)
-    
+                self.logger.error(f"Error modifying functional group: {str(e)}")
+            return None
+
     def _check_fg_compatibility(self, mol: Chem.Mol, source_fg: str, target_fg: str) -> int:
         compatibility = 2
         

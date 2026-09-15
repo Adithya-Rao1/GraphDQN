@@ -12,11 +12,34 @@ from rdkit import DataStructs
 from molecular_modifications.bioisosteres_optimization import ModifyBioisosteres
 from molecular_modifications.atom_optimization import ModifyAtom
 from molecular_modifications.bond_optimization import ModifyBond
+from molecular_modifications.functional_group_optimization import ModifyFunctionalGroup
 from molecular_modifications.logger import setup_molecule_logger
 
 modify_atom = ModifyAtom(setup_molecule_logger())
 modify_bond = ModifyBond(setup_molecule_logger())
 modify_bio = ModifyBioisosteres(setup_molecule_logger())
+modify_fg = ModifyFunctionalGroup(setup_molecule_logger())
+
+# Functional-group edits to try each step. Removal groups are single-attachment
+# substituents ModifyFunctionalGroup can find and remove; modify pairs are
+# limited to fragments FG_FRAGMENT_SMILES actually defines (both ends);
+# add groups use whatever attachment site functional_group_add_sites finds
+# first, mirroring how modify_atom/modify_bond pick one site per call rather
+# than enumerating every possibility.
+_FG_REMOVE_GROUPS = [
+    'methyl', 'hydroxyl', 'amino', 'carboxyl', 'carbonyl', 'aldehyde',
+    'ketone', 'ether', 'ester', 'amide', 'nitro', 'cyano', 'thiol',
+    'halogen', 'azide', 'sulfonamide',
+]
+_FG_MODIFY_PAIRS = [
+    ('hydroxyl', 'amino'), ('hydroxyl', 'thiol'), ('hydroxyl', 'methyl'), ('hydroxyl', 'halogen'),
+    ('amino', 'hydroxyl'), ('amino', 'amide'),
+    ('carboxyl', 'ester'), ('carboxyl', 'amide'),
+    ('aldehyde', 'ketone'), ('aldehyde', 'carboxyl'),
+    ('thiol', 'hydroxyl'), ('cyano', 'carboxyl'), ('nitro', 'amino'),
+    ('ester', 'carboxyl'), ('amide', 'carboxyl'),
+]
+_FG_ADD_GROUPS = ['methyl', 'hydroxyl', 'amino', 'halogen', 'cyano', 'carboxyl']
 
 class Result(collections.namedtuple("Result", ["state", "reward", "terminated"])):
     "Named tuple to store the result of an environment step."
@@ -81,6 +104,18 @@ def get_all_actions(state):
     actions.add(
         modify_bio.apply_modification(mol, 'phenyl', 'pyrrole')
     )
+
+    # Functional group actions
+    for fg in _FG_REMOVE_GROUPS:
+        actions.add(modify_fg.remove_functional_group(mol, fg))
+
+    for source_fg, target_fg in _FG_MODIFY_PAIRS:
+        actions.add(modify_fg.modify_functional_group(mol, source_fg, target_fg))
+
+    for fg in _FG_ADD_GROUPS:
+        add_sites = modify_fg.functional_group_add_sites(mol, fg)
+        if add_sites:
+            actions.add(modify_fg.add_functional_group(mol, fg, add_sites[0]))
 
     candidates = {smiles for smiles in actions if smiles and Chem.MolFromSmiles(smiles) is not None}
 

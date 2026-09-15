@@ -48,7 +48,7 @@ class ModifyBond:
                         if modified_mol is not None:
                             if self.log:
                                 self.logger.info(f"Successful bond {chosen_action} operation.")
-                            return modified_mol
+                            return Chem.MolToSmiles(modified_mol)
                     except Exception as e:
                         if self.log:
                             self.logger.warning(f"{chosen_action.capitalize()} failed for atom_idx_pair {atom_idx_pair}, bond_idx {bond_idx}: {e}")
@@ -423,10 +423,7 @@ if __name__ == "__main__":
         print(atom_indices, bond_indices)
         
         modified_mol = modify_bond.optimize_bond(mol, 1, False)
-        if modified_mol is not None:
-            modified_mols.append(Chem.MolToSmiles(modified_mol))
-        else:
-            modified_mols.append(None)
+        modified_mols.append(modified_mol)
         print(modify_bond.get_bond_indices(mol))
         
         bond_by_idx = modify_bond._get_bond_by_indices(mol, (0,1))

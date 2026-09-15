@@ -59,6 +59,14 @@ def _normalize_sa_score(sa_score: float) -> float:
     clipped = min(max(sa_score, SA_SCORE_MIN), SA_SCORE_MAX)
     return (SA_SCORE_MAX - clipped) / (SA_SCORE_MAX - SA_SCORE_MIN)
 
+SELECTIVITY_SCALE = 10.0
+
+
+def _normalize_selectivity(selectivity: float) -> float:
+    if selectivity is None or selectivity < 0:
+        return 0.0
+    return selectivity / (selectivity + SELECTIVITY_SCALE)
+
 
 def compute_reward(
     smiles: str,
@@ -92,13 +100,14 @@ def compute_reward(
     if off_target_seq:
         off_target_uM = run_predictions(binding_model, off_target_seq, [smiles])[0]
         selectivity = compare_affinities(binding_uM, off_target_uM)
+        selectivity_score = _normalize_selectivity(selectivity)
 
         scale = selectivity_weight / 3
         reward = (
             (admet_weight - scale) * admet_reward
             + (binding_weight - scale) * binding_score
             + (synthetic_weight - scale) * sa_reward
-            + selectivity_weight * selectivity
+            + selectivity_weight * selectivity_score
         )
     else:
         selectivity = None

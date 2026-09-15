@@ -23,6 +23,7 @@ class ModifyAtom:
             if not isinstance(mol, (Chem.Mol, Chem.RWMol)):
                 self.logger.error("Input molecule must be a Chem.Mol or Chem.RWMol.")
         rwmol = Chem.RWMol(mol)
+        rwmol.UpdatePropertyCache(strict=False)
 
         modification_sites = self._identify_modification_sites(rwmol)
 
@@ -57,6 +58,7 @@ class ModifyAtom:
             if not isinstance(mol, (Chem.Mol, Chem.RWMol)):
                 self.logger.error("Input molecule must be a Chem.Mol or Chem.RWMol.")
         rwmol = Chem.RWMol(mol)
+        rwmol.UpdatePropertyCache(strict=False)
 
         modification_sites = self._identify_modification_sites(rwmol)
         if not modification_sites:
@@ -104,6 +106,7 @@ class ModifyAtom:
                 self.logger.error("Input molecule must be a Chem.Mol or Chem.RWMol.")
             return None
         rwmol = Chem.RWMol(mol)
+        rwmol.UpdatePropertyCache(strict=False)
 
         modification_sites = self._identify_modification_sites(rwmol)
         if not modification_sites:
