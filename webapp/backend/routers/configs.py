@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from webapp.backend.db import get_db
 from webapp.backend.deps import get_current_user
-from webapp.backend.models import OptimizationConfig, Protein, StartingMolecule, User
+from webapp.backend.models import OptimizationConfig, Protein, StartingMolecule, TrainingRun, User
 from webapp.backend.schemas import OptimizationConfigCreate, OptimizationConfigOut
 
 router = APIRouter(prefix="/api/configs", tags=["configs"])
@@ -70,5 +70,12 @@ def get_config(config_id: int, db: Session = Depends(get_db), current_user: User
 @router.delete("/{config_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_config(config_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     config = _owned_or_404(db, OptimizationConfig, config_id, current_user.id, "Config")
+    run_count = db.query(TrainingRun).filter(TrainingRun.config_id == config_id).count()
+    if run_count:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"Cannot delete: {run_count} training run(s) reference this config. "
+            "Their candidates keep a snapshot of this config's name regardless.",
+        )
     db.delete(config)
     db.commit()

@@ -6,14 +6,14 @@ from sqlalchemy.orm import Session
 
 from webapp.backend.db import get_db
 from webapp.backend.deps import get_current_user
-from webapp.backend.models import StartingMolecule, User
+from webapp.backend.models import OptimizationConfig, StartingMolecule, User
 from webapp.backend.schemas import (
     MoleculeCreate,
     MoleculeOut,
     MoleculePreviewOut,
     MoleculePreviewRequest,
 )
-from experiments.visualize_agent import mol_image_base64
+from webapp.backend.mol_render import mol_image_base64
 
 router = APIRouter(prefix="/api/molecules", tags=["molecules"])
 
@@ -67,5 +67,11 @@ def delete_molecule(molecule_id: int, db: Session = Depends(get_db),
     molecule = db.get(StartingMolecule, molecule_id)
     if molecule is None or molecule.user_id != current_user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Molecule not found")
+    config_count = db.query(OptimizationConfig).filter(
+        OptimizationConfig.starting_molecule_id == molecule_id
+    ).count()
+    if config_count:
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                             f"Cannot delete: {config_count} optimization config(s) reference this molecule")
     db.delete(molecule)
     db.commit()

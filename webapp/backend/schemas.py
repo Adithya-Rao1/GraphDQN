@@ -204,9 +204,17 @@ class GenerationBatchOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class FineTuneUsageOut(BaseModel):
+    training_run_id: int
+    status: str
+    alpha: float
+    created_at: datetime
+
+
 class CandidateOut(BaseModel):
     id: int
     generation_batch_id: int
+    training_run_id: int
     smiles: str
     image_b64: Optional[str] = None
     reward: float
@@ -217,6 +225,16 @@ class CandidateOut(BaseModel):
     user_rating: Optional[float] = None
     rating_notes: Optional[str] = None
     created_at: datetime
+
+    config_id: Optional[int] = None
+    config_name: str
+    starting_molecule_id: Optional[int] = None
+    starting_smiles: str
+    target_protein_id: Optional[int] = None
+    target_protein_name: str
+    off_target_protein_id: Optional[int] = None
+    off_target_protein_name: Optional[str] = None
+    used_in_finetune_runs: List[FineTuneUsageOut] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
 

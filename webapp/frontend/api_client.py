@@ -34,7 +34,6 @@ class ApiClient:
             return None
         return response.json()
 
-    # ---- auth ----
     def signup(self, email: str, password: str) -> dict:
         return self._request("POST", "/api/auth/signup", json={"email": email, "password": password})
 
@@ -44,14 +43,12 @@ class ApiClient:
     def me(self) -> dict:
         return self._request("GET", "/api/auth/me")
 
-    # ---- meta ----
     def admet_properties(self) -> list:
         return self._request("GET", "/api/meta/admet-properties")
 
     def example_targets(self) -> list:
         return self._request("GET", "/api/meta/example-targets")
 
-    # ---- molecules ----
     def preview_molecule(self, smiles: str) -> dict:
         return self._request("POST", "/api/molecules/preview", json={"smiles": smiles})
 
@@ -64,7 +61,6 @@ class ApiClient:
     def delete_molecule(self, molecule_id: int) -> None:
         self._request("DELETE", f"/api/molecules/{molecule_id}")
 
-    # ---- proteins ----
     def create_protein(self, name: str, sequence: str) -> dict:
         return self._request("POST", "/api/proteins", json={"name": name, "sequence": sequence})
 
@@ -74,7 +70,6 @@ class ApiClient:
     def delete_protein(self, protein_id: int) -> None:
         self._request("DELETE", f"/api/proteins/{protein_id}")
 
-    # ---- configs ----
     def create_config(self, payload: dict) -> dict:
         return self._request("POST", "/api/configs", json=payload)
 
@@ -84,7 +79,6 @@ class ApiClient:
     def delete_config(self, config_id: int) -> None:
         self._request("DELETE", f"/api/configs/{config_id}")
 
-    # ---- runs ----
     def start_run(self, payload: dict) -> dict:
         return self._request("POST", "/api/runs", json=payload)
 
@@ -101,20 +95,23 @@ class ApiClient:
     def finetune_run(self, run_id: int, payload: dict) -> dict:
         return self._request("POST", f"/api/runs/{run_id}/finetune", json=payload)
 
-    # ---- generation ----
     def generate_candidates(self, run_id: int, payload: dict) -> dict:
         return self._request("POST", f"/api/runs/{run_id}/generate", json=payload)
 
     def get_generation_batch(self, batch_id: int) -> dict:
         return self._request("GET", f"/api/generation-batches/{batch_id}")
 
-    def list_candidates(self, generation_batch_id: Optional[int] = None,
-                         training_run_id: Optional[int] = None) -> list:
+    def list_candidates(self, generation_batch_id: Optional[int] = None, training_run_id: Optional[int] = None,
+                         target_protein_id: Optional[int] = None, config_id: Optional[int] = None) -> list:
         params = {}
         if generation_batch_id is not None:
             params["generation_batch_id"] = generation_batch_id
         if training_run_id is not None:
             params["training_run_id"] = training_run_id
+        if target_protein_id is not None:
+            params["target_protein_id"] = target_protein_id
+        if config_id is not None:
+            params["config_id"] = config_id
         return self._request("GET", "/api/candidates", params=params)
 
     def score_candidate(self, candidate_id: int, rating: float, notes: Optional[str] = None) -> dict:

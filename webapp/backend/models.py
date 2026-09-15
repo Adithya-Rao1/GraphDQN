@@ -127,6 +127,7 @@ class GeneratedCandidate(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     generation_batch_id = Column(Integer, ForeignKey("generation_batches.id"), nullable=False, index=True)
+    training_run_id = Column(Integer, ForeignKey("training_runs.id"), nullable=False, index=True)
 
     smiles = Column(String, nullable=False)
     reward = Column(Float, nullable=False)
@@ -137,6 +138,15 @@ class GeneratedCandidate(Base):
 
     user_rating = Column(Float, nullable=True)
     rating_notes = Column(Text, nullable=True)
+
+    config_id = Column(Integer, ForeignKey("optimization_configs.id"), nullable=True)
+    config_name = Column(String, nullable=False)
+    starting_molecule_id = Column(Integer, ForeignKey("starting_molecules.id"), nullable=True)
+    starting_smiles = Column(String, nullable=False)
+    target_protein_id = Column(Integer, ForeignKey("proteins.id"), nullable=True)
+    target_protein_name = Column(String, nullable=False)
+    off_target_protein_id = Column(Integer, ForeignKey("proteins.id"), nullable=True)
+    off_target_protein_name = Column(String, nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())
 

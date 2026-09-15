@@ -3,9 +3,11 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from sqlalchemy import or_
+
 from webapp.backend.db import get_db
 from webapp.backend.deps import get_current_user
-from webapp.backend.models import Protein, User
+from webapp.backend.models import OptimizationConfig, Protein, User
 from webapp.backend.schemas import ProteinCreate, ProteinOut
 
 router = APIRouter(prefix="/api/proteins", tags=["proteins"])
@@ -37,5 +39,14 @@ def delete_protein(protein_id: int, db: Session = Depends(get_db),
     protein = db.get(Protein, protein_id)
     if protein is None or protein.user_id != current_user.id:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Protein not found")
+    config_count = db.query(OptimizationConfig).filter(
+        or_(
+            OptimizationConfig.target_protein_id == protein_id,
+            OptimizationConfig.off_target_protein_id == protein_id,
+        )
+    ).count()
+    if config_count:
+        raise HTTPException(status.HTTP_409_CONFLICT,
+                             f"Cannot delete: {config_count} optimization config(s) reference this protein")
     db.delete(protein)
     db.commit()

@@ -12,7 +12,8 @@ from ADMET.model import ADMETModel
 from binding_module.binding_affinity.plapt import Plapt
 from synthetic_accessibility.sa_score import SyntheticAccessibility
 from reward.multi_objective import RewardConfig, compute_reward
-from experiments.visualize_agent import mol_image_base64, new_atoms_since
+from experiments.visualize_agent import new_atoms_since
+from webapp.backend.mol_render import mol_image_base64
 
 
 def generate_dqn_candidates(

@@ -26,10 +26,25 @@ def render_candidate_card(candidate: dict, api, allow_scoring: bool = True, allo
         if candidate.get("user_rating") is not None else ""
     )
 
+    protein_line = candidate.get("target_protein_name", "")
+    if candidate.get("off_target_protein_name"):
+        protein_line += f" (vs. off-target {candidate['off_target_protein_name']})"
+
+    finetune_uses = candidate.get("used_in_finetune_runs") or []
+    finetune_line = ""
+    if finetune_uses:
+        run_ids = ", ".join(f"#{u['training_run_id']}" for u in finetune_uses)
+        finetune_line = f'<div class="gdqn-meta">Used in fine-tune run(s): {run_ids}</div>'
+
     st.markdown(f"""
     <div class="gdqn-card">
       {img_tag}
       <div class="gdqn-smiles">{candidate['smiles']}</div>
+      <div class="gdqn-meta">
+        From {candidate.get('starting_smiles', '?')} &middot; target: {protein_line}<br>
+        Config: {candidate.get('config_name', '?')} &middot; run #{candidate.get('training_run_id', '?')}
+      </div>
+      {finetune_line}
       <table class="gdqn-metrics">
         <tr><td>Reward</td><td>{_fmt(candidate['reward'])}</td></tr>
         <tr><td>ADMET score</td><td>{_fmt(candidate.get('admet_score'))}</td></tr>

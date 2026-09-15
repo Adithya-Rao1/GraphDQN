@@ -35,12 +35,21 @@ def run_generation_job(batch_id: int, cancel_event: threading.Event) -> None:
             db.add(GeneratedCandidate(
                 user_id=batch.user_id,
                 generation_batch_id=batch.id,
+                training_run_id=run.id,
                 smiles=result["smiles"],
                 reward=result["reward"],
                 admet_score=result["admet_score"],
                 binding_uM=result["binding_uM"],
                 sa_score=result["sa_score"],
                 selectivity=result["selectivity"],
+                config_id=config.id,
+                config_name=config.name,
+                starting_molecule_id=config.starting_molecule_id,
+                starting_smiles=config.starting_molecule.canonical_smiles,
+                target_protein_id=config.target_protein_id,
+                target_protein_name=config.target_protein.name,
+                off_target_protein_id=config.off_target_protein_id,
+                off_target_protein_name=config.off_target_protein.name if config.off_target_protein else None,
             ))
 
         batch.status = "completed"

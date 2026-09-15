@@ -44,7 +44,17 @@ _CSS = f"""
     font-variant-numeric: tabular-nums;
     color: {TEXT};
   }}
-  .gdqn-mol-img {{ width: 100%; border-radius: 6px; background: #fff; }}
+  .gdqn-mol-img {{
+    display: block;
+    width: 100%;
+    max-width: 280px;
+    margin: 0 auto;
+    box-sizing: border-box;
+    border-radius: 8px;
+    border: 1px solid {BORDER};
+    background: {CARD_BG};
+    padding: 8px;
+  }}
 
   [data-testid="stButton"] > button {{
     background: {CARD_BG};
