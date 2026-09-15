@@ -46,7 +46,7 @@ def get_atom_features(atom,
     atom_feature_vec = atom_enc + heavy_nei_enc + formal_charge_enc + hybridization_type_enc + in_ring_enc + is_aromatic_enc + vdw_radius_scaled + covalent_radius_scaled
 
     if chirality == True:
-        atom_feature_vec += one_hot_encoding(str(atom.GetChiralTag()), ["CHI_UNSPECIFIED, CHI_TETRAHEDRAL_CW, CHI_TETRAHEDRAL_CCW, CHI_OTHER"])
+        atom_feature_vec += one_hot_encoding(str(atom.GetChiralTag()), ["CHI_UNSPECIFIED", "CHI_TETRAHEDRAL_CW", "CHI_TETRAHEDRAL_CCW", "CHI_OTHER"])
 
     if imp_hs == True:
         atom_feature_vec += one_hot_encoding(int(atom.GetTotalNumHs()), [0, 1, 2, 3, 4, "OutOfRange"])
@@ -82,7 +82,7 @@ def create_graph(smiles):
         n_nodes = mol.GetNumAtoms()
         n_edges = 2 * mol.GetNumBonds()
         
-        node_features = np.zeros((n_nodes, 42))
+        node_features = np.zeros((n_nodes, 45))
 
         for atom in mol.GetAtoms():
             node_features[atom.GetIdx(), :] = get_atom_features(atom)
@@ -132,7 +132,19 @@ def setup_dqn_logger(log_dir='./logs', log_filename='dqn.log'):
 
 def obs_to_loader(obs, batch_size):
     loader = DataLoader(obs, batch_size, collate_fn=collate_fn, drop_last=True)
-    return loader 
+    return loader
+
+def boltzmann_sample(q_values, tau):
+    if hasattr(q_values, "detach"):
+        q_values = q_values.detach().cpu().numpy()
+    q_values = np.asarray(q_values, dtype=np.float64).reshape(-1)
+
+    tau = max(tau, 1e-6)
+    scaled = (q_values - q_values.max()) / tau
+    probs = np.exp(scaled)
+    probs /= probs.sum()
+
+    return int(np.random.choice(len(q_values), p=probs))
 
 def largest_ring_size(inp_mol):
     if isinstance(inp_mol, str):
