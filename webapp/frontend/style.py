@@ -87,6 +87,23 @@ _CSS = f"""
   }}
   span[data-baseweb="tag"] * {{ color: {TEXT} !important; fill: {TEXT} !important; }}
 
+  /* Newer Streamlit builds implement st.multiselect's tags via
+     react-aria-components instead of BaseWeb (confirmed by inspecting the
+     actual rendered DOM: <span data-tag="" ...>), so the data-baseweb rule
+     above never matched them -- they kept their default light chip
+     background with our forced light text on top, i.e. invisible. */
+  [data-testid="stMultiSelectTagsContainer"] span[data-tag] {{
+    background: {BORDER} !important;
+    color: {TEXT} !important;
+    border-radius: 6px !important;
+  }}
+  [data-testid="stMultiSelectTagsContainer"] span[data-tag] * {{
+    color: {TEXT} !important;
+  }}
+  [data-testid="stMultiSelectTagsContainer"] span[data-tag] svg path {{
+    stroke: {TEXT} !important;
+  }}
+
   /* Dropdown/menu popovers (the open list of options) render in a portal
      attached directly to <body>, outside stAppViewContainer, so they need
      their own unscoped rules or they fall back to BaseWeb's light theme. */
