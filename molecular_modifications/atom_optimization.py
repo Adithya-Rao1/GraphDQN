@@ -88,6 +88,8 @@ class ModifyAtom:
                 bond_type = Chem.BondType.SINGLE
 
             new_atom_idx = rwmol.AddAtom(Chem.Atom(substitution_atom))
+            bond_order = {Chem.BondType.SINGLE: 1, Chem.BondType.DOUBLE: 2, Chem.BondType.TRIPLE: 3}[bond_type]
+            reclaim_h_for_new_bond(existing_atom, bond_order)
             rwmol.AddBond(atom_idx, new_atom_idx, bond_type)
             Chem.SanitizeMol(rwmol)
             Chem.AssignStereochemistry(rwmol, cleanIt=True, force=True)

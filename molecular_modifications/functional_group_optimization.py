@@ -5,6 +5,8 @@ from typing import List, Dict, Tuple, Optional, Union, Set
 from rdkit import Chem
 from rdkit.Chem import AllChem
 
+from molecular_modifications.modification_imports import reclaim_h_for_new_bond
+
 # TODO: INCREASE SET OF POSSIBLE BONDING SITES FOR EACH FG
 
 FUNCTIONAL_GROUPS = {
@@ -221,6 +223,7 @@ class ModifyFunctionalGroup:
         frag_attach_idx = mol.GetNumAtoms()
 
         try:
+            reclaim_h_for_new_bond(combined.GetAtomWithIdx(attachment_idx), 1)
             combined.AddBond(attachment_idx, frag_attach_idx, Chem.BondType.SINGLE)
             Chem.SanitizeMol(combined)
             Chem.AssignStereochemistry(combined, cleanIt=True, force=True)

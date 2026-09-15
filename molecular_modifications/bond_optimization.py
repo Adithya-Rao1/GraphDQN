@@ -74,6 +74,12 @@ class ModifyBond:
             candidate = Chem.RWMol(rwmol)
 
             try:
+                order = {Chem.BondType.SINGLE: 1, Chem.BondType.DOUBLE: 2, Chem.BondType.TRIPLE: 3}
+                delta = order.get(new_bond_type, 1) - order.get(bond.GetBondType(), 1)
+                if delta > 0:
+                    reclaim_h_for_new_bond(candidate.GetAtomWithIdx(atom_idx_pair[0]), delta)
+                    reclaim_h_for_new_bond(candidate.GetAtomWithIdx(atom_idx_pair[1]), delta)
+
                 candidate.RemoveBond(atom_idx_pair[0], atom_idx_pair[1])
                 candidate.AddBond(atom_idx_pair[0], atom_idx_pair[1], new_bond_type)
 
