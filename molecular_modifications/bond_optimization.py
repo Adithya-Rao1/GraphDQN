@@ -45,60 +45,54 @@ class ModifyBond:
                             modified_mol = strategy(mol, rwmol, atom_idx_pair)
                         else:
                             modified_mol = strategy(mol, rwmol, atom_idx_pair, bond_indices, batch)
-                        if modified_mol is not None and modified_mol != mol:
+                        if modified_mol is not None:
                             if self.log:
                                 self.logger.info(f"Successful bond {chosen_action} operation.")
-                            return Chem.MolToSmiles(modified_mol)
+                            return modified_mol
                     except Exception as e:
                         if self.log:
                             self.logger.warning(f"{chosen_action.capitalize()} failed for atom_idx_pair {atom_idx_pair}, bond_idx {bond_idx}: {e}")
-                        return None
+                        continue
 
         if self.log:
             self.logger.error("All bond modification attempts failed.")
         return None
 
     def _modify_bond(self, mol, rwmol, atom_idx_pair, bond_indices, batch):
-        for bond in self.bond_types:
-            new_bond_type = bond
-            if batch:
-                successful_modifications = 0
-                for bond_idx in bond_indices:
-                    bond = rwmol.GetBondWithIdx(bond_idx)
-                    if self.bond_rule_fn and not self.bond_rule_fn(bond):
-                        continue
-                    try:
-                        rwmol.RemoveBond(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
-                        rwmol.AddBond(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx(), new_bond_type)
-                        Chem.SanitizeMol(rwmol)
-                        successful_modifications += 1
-                    except Exception as e:
-                        if self.log:
-                            self.logger.warning(f"Modification to bond {bond_idx} caused an error: {e}. Final molecule not fully sanitized.")
-                        return None
+        bond = self._get_bond_by_indices(rwmol, atom_idx_pair)
 
-                if successful_modifications == 0:
-                    if self.log:
-                        self.logger.error("No bond modifications were successful.")
-                    return None
-            
-            else:
-                bond = self._get_bond_by_indices(rwmol, atom_idx_pair)
-                if not bond:
-                    return None
-                if bond.GetBondType() == new_bond_type:
+        if bond is None:
+            return None
+
+        # if self.bond_rule_fn and not self.bond_rule_fn(bond):
+        #     return None
+
+        for new_bond_type in self.bond_types:
+            if bond.GetBondType() == new_bond_type:
+                continue
+
+            candidate = Chem.RWMol(rwmol)
+
+            try:
+                candidate.RemoveBond(atom_idx_pair[0], atom_idx_pair[1])
+                candidate.AddBond(atom_idx_pair[0], atom_idx_pair[1], new_bond_type)
+
+                candidate.UpdatePropertyCache(strict=False)
+                Chem.SanitizeMol(candidate)
+
+                new_bond = candidate.GetBondBetweenAtoms(
+                    atom_idx_pair[0], atom_idx_pair[1]
+                )
+
+                if new_bond is not None and self.bond_rule_fn and not self.bond_rule_fn(new_bond):
                     continue
-                bond_idx = bond.GetIdx()
-                if not self.bond_rule_fn or self.bond_rule_fn(bond):
-                    try:
-                        rwmol.RemoveBond(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
-                        rwmol.AddBond(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx(), new_bond_type)
-                        Chem.SanitizeMol(rwmol)
-                        return Chem.Mol(rwmol)
-                    except Exception as e:
-                        if self.log:
-                            self.logger.warning(f"Modification to bond {bond_idx} caused an error: {e}. Final molecule not fully sanitized.")
-                        return None
+
+                return Chem.Mol(candidate)
+
+            except Exception as e:
+                if self.log:
+                    self.logger.warning(f"Modification to bond {bond.GetIdx()} caused an error: {e}. Candidate rejected.")
+
         return None
 
     def _addbond(self, mol, rwmol, atom_idx_pair):
@@ -110,7 +104,7 @@ class ModifyBond:
                     self.logger.error(f"Bond addition failed due to error {e}.")
                 continue
 
-            if candidate_rwmol is mol:
+            if candidate_rwmol is None or candidate_rwmol is mol:
                 continue
 
             new_bond = candidate_rwmol.GetBondBetweenAtoms(atom_idx_pair[0], atom_idx_pair[1])
@@ -126,41 +120,53 @@ class ModifyBond:
                 if self.bond_rule_fn and not self.bond_rule_fn(bond):  
                     continue
                 rwmol = self._remove_bond(mol, rwmol, bond_idx)
+                if rwmol is None or rwmol is mol:
+                    continue
                 return Chem.Mol(rwmol)
         else:
             bond = self._get_bond_by_indices(rwmol, atom_idx_pair)
             if bond:
                 if not self.bond_rule_fn or self.bond_rule_fn(bond):
                     result = self._remove_bond(mol, rwmol, bond.GetIdx())
-                    if result is mol:
+                    if result is mol or result is None:
                         return None
                     return Chem.Mol(result)
         return None
 
-    def get_optimal_bond_sites(self, mol, allowed_bond_types=None, exclude_hydrogens=True):
+    def get_optimal_bond_sites(
+    self,
+    mol,
+    allowed_bond_types=None,
+    exclude_hydrogens=True
+    ):
         if allowed_bond_types is None:
             allowed_bond_types = self.bond_types
 
+        mol.UpdatePropertyCache(strict=False)
         optimal_sites = []
 
         for atom_i in mol.GetAtoms():
             if exclude_hydrogens and atom_i.GetAtomicNum() == 1:
                 continue
+
             for atom_j in mol.GetAtoms():
-                if atom_j.GetIdx() <= atom_i.GetIdx():  
+                if atom_j.GetIdx() <= atom_i.GetIdx():
                     continue
+
                 if exclude_hydrogens and atom_j.GetAtomicNum() == 1:
                     continue
 
                 bond = mol.GetBondBetweenAtoms(atom_i.GetIdx(), atom_j.GetIdx())
+
                 if bond:
                     if bond.GetBondType() in allowed_bond_types:
                         optimal_sites.append((atom_i.GetIdx(), atom_j.GetIdx()))
                 else:
                     valence_i = VALENCE_ELECTRON_COUNTS.get(atom_i.GetSymbol(), None)
                     valence_j = VALENCE_ELECTRON_COUNTS.get(atom_j.GetSymbol(), None)
+
                     if valence_i and valence_j:
-                        if atom_i.GetValence(Chem.ValenceType.EXPLICIT) < valence_i and atom_j.GetValence(Chem.ValenceType.EXPLICIT) < valence_j:
+                        if (atom_i.GetValence(Chem.ValenceType.EXPLICIT) < valence_i and atom_j.GetValence(Chem.ValenceType.EXPLICIT) < valence_j):
                             optimal_sites.append((atom_i.GetIdx(), atom_j.GetIdx()))
 
         return optimal_sites
@@ -229,80 +235,66 @@ class ModifyBond:
             if self.log:
                 self.logger.error(f"A bond already exists between atoms {atom1_idx} and {atom2_idx}.")
             return mol
+
         if not isinstance(bond_type, Chem.BondType):
             if self.log:
                 self.logger.error("bond_type must be an rdkit.Chem.BondType.")
             return mol
 
+        candidate = Chem.RWMol(rwmol)
+
         try:
-            rwmol.AddBond(atom1_idx, atom2_idx, bond_type)
+            candidate.AddBond(atom1_idx, atom2_idx, bond_type)
+            candidate.UpdatePropertyCache(strict=False)
+            Chem.SanitizeMol(candidate)
+            return candidate
 
-            for atom in rwmol.GetAtoms():
-                explicit_valence = atom.GetValence(Chem.ValenceType.EXPLICIT)
-                total_valence = atom.GetTotalValence()
-
-                if explicit_valence > total_valence:
-                    if self.log:
-                        num_missing_h = explicit_valence - total_valence
-                        self.logger.error(
-                            f"Atom {atom.GetIdx()} has invalid valence. "
-                            f"Adding {num_missing_h} hydrogen(s) to correct."
-                        )
-                    rwmol = Chem.AddHs(rwmol, onlyOnAtoms=[atom.GetIdx()])
-
-            try:
-                Chem.SanitizeMol(rwmol)
-                return rwmol
-            except Exception as e: 
-                if self.log:   
-                    self.logger.warning("Final molecule may not be fully sanitized.")
-                return mol
-            
         except Exception as e:
             if self.log:
-                self.logger.error(f"Failed to add bond between atoms {atom1_idx} and {atom2_idx}: {e}")
-            return mol
+                self.logger.error(
+                    f"Failed to add bond between atoms "
+                    f"{atom1_idx} and {atom2_idx}: {e}"
+                )
+            return None
+       
         
     def _remove_bond(self, mol, rwmol, bond_idx):
         if bond_idx < 0 or bond_idx >= rwmol.GetNumBonds():
             if self.log:
-                self.logger.error(f"Bond index {bond_idx} is out of bounds for the molecule.")
+                self.logger.error(
+                    f"Bond index {bond_idx} is out of bounds for the molecule."
+                )
             return mol
-        
+
         bond = rwmol.GetBondWithIdx(bond_idx)
-        if not bond:
+
+        if bond is None:
             if self.log:
                 self.logger.error(f"No bond exists with index {bond_idx}.")
             return mol
-        
-        try:
-            rwmol.RemoveBond(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
-            
-            for atom in rwmol.GetAtoms():
-                explicit_valence = atom.GetValence(Chem.ValenceType.EXPLICIT)
-                total_valence = atom.GetTotalValence()
 
-                if explicit_valence > total_valence:
-                    num_missing_h = explicit_valence - total_valence
-                    self.logger.error(
-                        f"Atom {atom.GetIdx()} has invalid valence. "
-                        f"Adding {num_missing_h} hydrogen(s) to correct."
-                    )
-                    rwmol = Chem.AddHs(rwmol, onlyOnAtoms=[atom.GetIdx()])
-                
-            try:
-                Chem.SanitizeMol(rwmol)
-                return rwmol
-            except Exception:
-                if self.log:
-                    self.logger.warning("Final molecule may not be fully sanitized.")
-                return mol
-            
+        candidate = Chem.RWMol(rwmol)
+
+        try:
+            bond = candidate.GetBondWithIdx(bond_idx)
+            candidate.RemoveBond(
+                bond.GetBeginAtomIdx(),
+                bond.GetEndAtomIdx()
+            )
+
+            candidate.UpdatePropertyCache(strict=False)
+            Chem.SanitizeMol(candidate)
+
+            return candidate
+
         except Exception as e:
             if self.log:
-                self.logger.error(f"Failed to remove bond with index {bond_idx}: {e}")
-            return mol
-        
+                self.logger.error(
+                    f"Failed to remove bond with index {bond_idx}: {e}"
+                )
+            return None
+    
+    @staticmethod
     def _bond_order(bond_type):
         if bond_type == rdchem.BondType.SINGLE:
             return 1
@@ -431,7 +423,10 @@ if __name__ == "__main__":
         print(atom_indices, bond_indices)
         
         modified_mol = modify_bond.optimize_bond(mol, 1, False)
-        modified_mols.append(Chem.MolToSmiles(modified_mol))
+        if modified_mol is not None:
+            modified_mols.append(Chem.MolToSmiles(modified_mol))
+        else:
+            modified_mols.append(None)
         print(modify_bond.get_bond_indices(mol))
         
         bond_by_idx = modify_bond._get_bond_by_indices(mol, (0,1))
