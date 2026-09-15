@@ -23,3 +23,5 @@ experiments/results/*.json
 logs/
 dqn_results/
 CLAUDE.md
+
+webapp/data/

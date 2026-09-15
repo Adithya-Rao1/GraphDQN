@@ -11,7 +11,13 @@ from ADMET.model import ADMETModel
 from binding_module.binding_affinity.plapt import Plapt, run_predictions
 from binding_module.selectivity.compare import compare_affinities
 from synthetic_accessibility.sa_score import SyntheticAccessibility
-from reward.multi_objective import ADMET_PROPERTIES, ADMET_OPTIM_DIRECTIONS, compute_admet_reward, compute_reward
+from reward.multi_objective import (
+    ADMET_PROPERTIES,
+    ADMET_OPTIM_DIRECTIONS,
+    RewardConfig,
+    compute_admet_reward,
+    compute_reward,
+)
 
 class QEDEnv(MoleculeEnv):
     def __init__(self, discount_factor, **kwargs):
@@ -95,7 +101,8 @@ class ADMETEnv(MoleculeEnv):
         return reward * self.discount_factor ** (self.max_steps - self._counter)
 
 class MultiObjectiveRewardEnv(MoleculeEnv):
-    def __init__(self, discount_factor, device, admet_model=None, binding_model=None, sa_model=None, **kwargs):
+    def __init__(self, discount_factor, device, admet_model=None, binding_model=None, sa_model=None,
+                 reward_config=None, **kwargs):
         super(MultiObjectiveRewardEnv, self).__init__(**kwargs)
         self.discount_factor = discount_factor
         self.device = device
@@ -103,6 +110,13 @@ class MultiObjectiveRewardEnv(MoleculeEnv):
         self.admet_model = admet_model if admet_model is not None else ADMETModel(self.device)
         self.binding_model = binding_model if binding_model is not None else Plapt(device=str(self.device))
         self.sa_model = sa_model if sa_model is not None else SyntheticAccessibility()
+
+        self.reward_config = reward_config if reward_config is not None else RewardConfig(
+            admet_weight=hyp.admet_weight,
+            binding_weight=hyp.binding_weight,
+            synthetic_weight=hyp.synthetic_weight,
+            selectivity_weight=hyp.selectivity_weight,
+        )
 
     def _reward(self):
         if self._state is None:
@@ -117,13 +131,10 @@ class MultiObjectiveRewardEnv(MoleculeEnv):
             target_seq=self.target_seq,
             device=self.device,
             off_target_seq=self.off_target_seq,
-            admet_weight=hyp.admet_weight,
-            binding_weight=hyp.binding_weight,
-            synthetic_weight=hyp.synthetic_weight,
-            selectivity_weight=hyp.selectivity_weight,
             admet_model=self.admet_model,
             binding_model=self.binding_model,
             sa_model=self.sa_model,
+            **self.reward_config.to_compute_reward_kwargs(),
         )
 
         return result["reward"] * self.discount_factor ** (self.max_steps - self._counter)

@@ -33,6 +33,19 @@ dependencies = [
     "typed-argument-parser",
 ]
 
+[project.optional-dependencies]
+webapp = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "sqlalchemy>=2.0",
+    "bcrypt>=4.0",
+    "python-jose[cryptography]>=3.3",
+    "python-multipart>=0.0.9",
+    "email-validator>=2.0",
+    "streamlit>=1.38,<2",
+    "requests>=2.32",
+]
+
 [tool.setuptools.packages.find]
 include = [
     "dqn*",
@@ -44,4 +57,5 @@ include = [
     "reward*",
     "experiments*",
     "all_experiments*",
+    "webapp*",
 ]

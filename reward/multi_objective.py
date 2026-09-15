@@ -1,4 +1,5 @@
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Dict, Optional, Sequence
 
 from rdkit import Chem
 
@@ -38,10 +39,18 @@ def _normalize_admet_property(prop: str, value: float, direction: int) -> float:
     return value if direction == 1 else (1.0 - value)
 
 
-def compute_admet_reward(admet_preds: dict) -> float:
+def compute_admet_reward(
+    admet_preds: dict,
+    properties: Optional[Sequence[str]] = None,
+    directions: Optional[Dict[str, int]] = None,
+) -> float:
+    properties = list(properties) if properties is not None else ADMET_PROPERTIES
+    directions = directions if directions is not None else dict(zip(ADMET_PROPERTIES, ADMET_OPTIM_DIRECTIONS))
+    if not properties:
+        return 0.0
     scores = [
-        _normalize_admet_property(prop, admet_preds[prop], direction)
-        for prop, direction in zip(ADMET_PROPERTIES, ADMET_OPTIM_DIRECTIONS)
+        _normalize_admet_property(prop, admet_preds[prop], directions[prop])
+        for prop in properties
     ]
     return sum(scores) / len(scores)
 
@@ -80,6 +89,8 @@ def compute_reward(
     admet_model: Optional[ADMETModel] = None,
     binding_model: Optional[Plapt] = None,
     sa_model: Optional[SyntheticAccessibility] = None,
+    admet_properties: Optional[Sequence[str]] = None,
+    admet_directions: Optional[Dict[str, int]] = None,
 ) -> dict:
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
@@ -90,7 +101,7 @@ def compute_reward(
     sa_model = sa_model if sa_model is not None else SyntheticAccessibility()
 
     admet_preds = admet_model.predict(smiles)
-    admet_reward = compute_admet_reward(admet_preds)
+    admet_reward = compute_admet_reward(admet_preds, admet_properties, admet_directions)
 
     binding_uM = run_predictions(binding_model, target_seq, [smiles])[0]
     sa_score = sa_model.calculateScore(mol)
@@ -124,3 +135,34 @@ def compute_reward(
         "sa_score": sa_score,
         "selectivity": selectivity,
     }
+
+
+@dataclass
+class RewardConfig:
+    admet_weight: float = 0.3
+    binding_weight: float = 0.5
+    synthetic_weight: float = 0.2
+    selectivity_weight: float = 0.3
+    admet_properties: Sequence[str] = field(default_factory=lambda: tuple(ADMET_PROPERTIES))
+    admet_directions: Dict[str, int] = field(
+        default_factory=lambda: dict(zip(ADMET_PROPERTIES, ADMET_OPTIM_DIRECTIONS))
+    )
+
+    def __post_init__(self):
+        unknown = set(self.admet_properties) - set(ADMET_PROPERTIES)
+        if unknown:
+            raise ValueError(f"Unknown ADMET properties: {unknown}")
+        defaults = dict(zip(ADMET_PROPERTIES, ADMET_OPTIM_DIRECTIONS))
+        self.admet_directions = {
+            prop: self.admet_directions.get(prop, defaults[prop]) for prop in self.admet_properties
+        }
+
+    def to_compute_reward_kwargs(self) -> dict:
+        return dict(
+            admet_weight=self.admet_weight,
+            binding_weight=self.binding_weight,
+            synthetic_weight=self.synthetic_weight,
+            selectivity_weight=self.selectivity_weight,
+            admet_properties=self.admet_properties,
+            admet_directions=self.admet_directions,
+        )
