@@ -59,13 +59,57 @@ _CSS = f"""
 
   [data-testid="stTextInput"] input,
   [data-testid="stTextArea"] textarea,
-  [data-testid="stNumberInput"] input,
-  [data-testid="stSelectbox"] div[data-baseweb="select"] > div {{
+  [data-testid="stNumberInput"] input {{
     background: {CARD_BG} !important;
     color: {TEXT} !important;
     border: 1px solid {BORDER} !important;
     border-radius: 6px !important;
   }}
+
+  /* Selectbox / multiselect closed-state control -- descendant (not just
+     direct-child) selectors since BaseWeb nests the value display a couple
+     levels deep and a `>` combinator silently misses it. */
+  [data-testid="stSelectbox"] div[data-baseweb="select"],
+  [data-testid="stSelectbox"] div[data-baseweb="select"] div,
+  [data-testid="stMultiSelect"] div[data-baseweb="select"],
+  [data-testid="stMultiSelect"] div[data-baseweb="select"] div {{
+    background: {CARD_BG} !important;
+    color: {TEXT} !important;
+    border-color: {BORDER} !important;
+  }}
+
+  /* Multiselect selected-item chips -- BaseWeb gives these their own light
+     background regardless of theme, which combined with our forced light
+     text color elsewhere made them render as invisible light-on-light. */
+  span[data-baseweb="tag"] {{
+    background: {BORDER} !important;
+    color: {TEXT} !important;
+  }}
+  span[data-baseweb="tag"] * {{ color: {TEXT} !important; fill: {TEXT} !important; }}
+
+  /* Dropdown/menu popovers (the open list of options) render in a portal
+     attached directly to <body>, outside stAppViewContainer, so they need
+     their own unscoped rules or they fall back to BaseWeb's light theme. */
+  div[data-baseweb="popover"],
+  div[data-baseweb="popover"] *,
+  ul[data-baseweb="menu"],
+  li[role="option"] {{
+    background: {CARD_BG} !important;
+    color: {TEXT} !important;
+  }}
+  li[role="option"]:hover,
+  li[aria-selected="true"] {{
+    background: {BORDER} !important;
+  }}
+
+  /* Tab bars (st.tabs) */
+  button[data-baseweb="tab"] {{ color: {MUTED} !important; }}
+  button[data-baseweb="tab"][aria-selected="true"] {{ color: {TEXT} !important; }}
+  [data-baseweb="tab-highlight"] {{ background: {TEXT} !important; }}
+  [data-baseweb="tab-border"] {{ background: {BORDER} !important; }}
+
+  [data-testid="stWidgetLabel"] p,
+  [data-testid="stWidgetLabel"] span {{ color: {TEXT} !important; }}
 
   [data-testid="stMetric"] {{
     background: {CARD_BG};

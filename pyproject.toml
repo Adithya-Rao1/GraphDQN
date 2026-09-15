@@ -17,7 +17,7 @@ dependencies = [
     "onnxruntime",
     "diskcache",
     "tqdm",
-    "numpy",
+    "numpy<2",
     "pandas",
     "scipy",
     "scikit-learn",
