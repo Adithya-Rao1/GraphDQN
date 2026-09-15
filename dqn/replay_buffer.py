@@ -27,7 +27,7 @@ class ReplayBuffer(object):
             obses_t.append(obs_t)
             actions.append(action)
             rewards.append(reward)
-            obses_tp1.extend(obs_tp1)
+            obses_tp1.append(obs_tp1)
             dones.append(done)
     
         return obses_t, actions, rewards, obses_tp1, dones
