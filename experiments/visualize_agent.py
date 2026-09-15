@@ -69,7 +69,7 @@ def rollout_dqn(checkpoint, start_smiles, target_seq, off_target_seq, device, ma
     from dqn.all_envs import MultiObjectiveRewardEnv
     from dqn.utils import create_graph
 
-    agent = DKDQNAgent(output_dim=15, device=device)
+    agent = DKDQNAgent(output_dim=1, device=device)
     state_dict = torch.load(checkpoint, map_location=device)
     agent.qn.load_state_dict(state_dict)
     agent.target_qn.load_state_dict(state_dict)  # get_action reads target_qn
