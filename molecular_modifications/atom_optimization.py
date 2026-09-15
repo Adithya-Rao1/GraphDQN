@@ -2,8 +2,8 @@ from molecular_modifications.modification_imports import *
 from molecular_modifications.logger import setup_molecule_logger
 
 class ModifyAtom:
-    def __init__(self, 
-                 logger, 
+    def __init__(self,
+                 logger,
                  substitution_atoms: Optional[List[str]] = None,
                  modification_strategy: str = 'balanced',
                  log:bool = False):
@@ -11,11 +11,11 @@ class ModifyAtom:
         self.log = log
 
         self.substitution_atoms = substitution_atoms or [
-            "C", "N", "O", "S", "P",  
-            "F", "Cl", "Br", "I",    
-            "B", "Si"                 
+            "C", "N", "O", "S", "P",
+            "F", "Cl", "Br", "I",
+            "B", "Si"
         ]
-        
+
         self.modification_strategy = modification_strategy
 
     def modify_atom(self, mol: Union[Chem.Mol, Chem.RWMol], action: int) -> Optional[Chem.Mol]:
@@ -25,21 +25,21 @@ class ModifyAtom:
         rwmol = Chem.RWMol(mol)
 
         modification_sites = self._identify_modification_sites(rwmol)
-        
+
         if not modification_sites:
             if self.log:
                 self.logger.error("No suitable modification sites found.")
-            return Chem.MolToSmiles(mol)
-        
+            return None
+
         atom_idx = self._select_modification_site(modification_sites)
         substitution_atom = self._select_substitution_atom(rwmol, atom_idx, action)
         if substitution_atom is None:
             if self.log:
                 self.logger.error("No suitable substitution atom found.")
-            return Chem.MolToSmiles(mol)
-        
+            return None
+
         current_symbol = rwmol.GetAtomWithIdx(atom_idx).GetSymbol()
-        
+
         try:
             rwmol.ReplaceAtom(atom_idx, Chem.Atom(substitution_atom))
             Chem.SanitizeMol(rwmol)
@@ -50,30 +50,30 @@ class ModifyAtom:
         except Exception as e:
             if self.log:
                 self.logger.error(f"Error modifying atom {current_symbol}: {str(e)}")
-            return Chem.MolToSmiles(mol)
-        
+            return None
+
     def add_atom(self, mol: Union[Chem.Mol, Chem.RWMol], action: int) -> Optional[Chem.Mol]:
         if self.log:
             if not isinstance(mol, (Chem.Mol, Chem.RWMol)):
                 self.logger.error("Input molecule must be a Chem.Mol or Chem.RWMol.")
         rwmol = Chem.RWMol(mol)
-        
+
         modification_sites = self._identify_modification_sites(rwmol)
         if not modification_sites:
             if self.log:
                 self.logger.error("No suitable modification sites found.")
-            return Chem.MolToSmiles(Chem.Mol(rwmol))
-        
+            return None
+
         atom_idx = self._select_modification_site(modification_sites)
         existing_atom = rwmol.GetAtomWithIdx(atom_idx)
-        
+
         substitution_atom = self._select_substitution_atom(rwmol, atom_idx, action)
         if substitution_atom is None:
             if self.log:
                 self.logger.error("No suitable atom found to add.")
-            return Chem.MolToSmiles(mol)
-        
-        bond_type = Chem.BondType.SINGLE 
+            return None
+
+        bond_type = Chem.BondType.SINGLE
         try:
             remaining_valence = VALENCE_ELECTRON_COUNTS.get(existing_atom.GetSymbol()) - existing_atom.GetTotalValence()
             if remaining_valence == 1:
@@ -89,41 +89,41 @@ class ModifyAtom:
             rwmol.AddBond(atom_idx, new_atom_idx, bond_type)
             Chem.SanitizeMol(rwmol)
             Chem.AssignStereochemistry(rwmol, cleanIt=True, force=True)
-            
+
             if self.log:
                 self.logger.info(f"Successful Add Action: Atom {substitution_atom} added to atom {existing_atom.GetSymbol()} (index {atom_idx}).")
             return Chem.MolToSmiles(Chem.Mol(rwmol))
         except Exception as e:
             if self.log:
                 self.logger.error(f"Failed to add atom: {e}")
-            return Chem.MolToSmiles(mol)
-        
+            return None
+
     def remove_atom(self, mol: Union[Chem.Mol, Chem.RWMol], action: int) -> Optional[Chem.Mol]:
         if not isinstance(mol, (Chem.Mol, Chem.RWMol)):
             if self.log:
                 self.logger.error("Input molecule must be a Chem.Mol or Chem.RWMol.")
             return None
         rwmol = Chem.RWMol(mol)
-        
+
         modification_sites = self._identify_modification_sites(rwmol)
         if not modification_sites:
             if self.log:
                 self.logger.error("No suitable modification sites found.")
-            return Chem.MolToSmiles(mol)
-        
+            return None
+
         atom_idx = self._select_modification_site(modification_sites)
         atom_to_remove = rwmol.GetAtomWithIdx(atom_idx)
 
         if atom_to_remove.GetIsAromatic() and not atom_to_remove.IsInRing():
             if self.log:
                 self.logger.error(f"Cannot remove non-ring aromatic atom: {atom_to_remove.GetSymbol()} (index {atom_idx}).")
-            return Chem.MolToSmiles(mol)
-        
+            return None
+
         try:
             rwmol.RemoveAtom(atom_idx)
-            
+
             Chem.SanitizeMol(rwmol)
-            
+
             Chem.AssignStereochemistry(rwmol, cleanIt=True, force=True)
 
             if self.log:
@@ -133,45 +133,45 @@ class ModifyAtom:
         except Exception as e:
             if self.log:
                 self.logger.error(f"Failed to remove atom: {e}")
-            return Chem.MolToSmiles(mol)
+            return None
 
     def _identify_modification_sites(self, mol: Chem.RWMol) -> List[Tuple[int, dict]]:
         modification_sites = []
-        
+
         for atom_idx in range(mol.GetNumAtoms()):
             atom = mol.GetAtomWithIdx(atom_idx)
-            
+
             site_properties = {
                 'is_in_ring': atom.IsInRing(),
                 'formal_charge': atom.GetFormalCharge(),
                 'valence': atom.GetTotalValence(),
                 'num_explicit_hs': atom.GetNumExplicitHs(),
             }
-            
-            if (not atom.IsInRing() or (atom.GetSymbol() != 'C' and atom.IsInRing())):  
+
+            if (not atom.IsInRing() or (atom.GetSymbol() != 'C' and atom.IsInRing())):
                 modification_sites.append((atom_idx, site_properties))
-        
+
         return modification_sites
 
     def _select_modification_site(self, sites: List[Tuple[int, dict]]) -> int:
         def score_site(site):
             _, props = site
             score = 0
-            
+
             # Penalty for ring atoms
             score -= 10 if props['is_in_ring'] else 0
-            
+
             # Favor sites with higher valence variability
             score += props['valence']
-            
+
             # Penalize sites with existing formal charge
             score -= abs(props['formal_charge']) * 5
-            
+
             # Favor atoms with fewer hydrogens for higher substitution potential
             score += 5 if props['num_explicit_hs'] < 2 else 0
-            
+
             return max(score, 1)
-        
+
         scored_sites = [(site[0], score_site(site)) for site in sites]
         indices, scores = zip(*scored_sites)
         total_score = sum(scores)
@@ -183,52 +183,52 @@ class ModifyAtom:
     def _select_substitution_atom(self, rwmol: Chem.RWMol, atom_idx: int, action: int) -> Optional[str]:
         current_atom = rwmol.GetAtomWithIdx(atom_idx)
         current_symbol = current_atom.GetSymbol()
-        
+
         candidate_atoms = [
-            atom for atom in self.substitution_atoms 
-            if atom != current_symbol and 
+            atom for atom in self.substitution_atoms
+            if atom != current_symbol and
             self._validate_substitution(rwmol, atom_idx, atom)
         ]
-        
+
         if not candidate_atoms:
-            return Chem.MolToSmiles(Chem.Mol(rwmol))
-        
+            return None
+
         if self.modification_strategy == 'balanced':
             def score_atom(atom):
                 return (
                     abs(ELECTRONEGATIVITY[atom] - ELECTRONEGATIVITY[current_symbol]) +
                     abs(COVALENT_RADII[atom] - COVALENT_RADII[current_symbol])
                 )
-            
+
             return min(candidate_atoms, key=score_atom)
-        
+
         elif self.modification_strategy == 'drug-like':
             drug_like_preference = ['C', 'N', 'O', 'S', 'P']
             preferred = [a for a in candidate_atoms if a in drug_like_preference]
             return preferred[action % len(preferred)] if preferred else candidate_atoms[action % len(candidate_atoms)]
-        
-        else:  
+
+        else:
             return candidate_atoms[action % len(candidate_atoms)]
 
     def _validate_substitution(self, rwmol: Chem.RWMol, atom_idx: int, new_atom: str) -> bool:
         atom = rwmol.GetAtomWithIdx(atom_idx)
-        
+
         max_valence = VALENCE_ELECTRON_COUNTS.get(atom.GetSymbol())
         current_valence = atom.GetTotalValence()
-        
+
         if current_valence > max_valence:
             return False
-        
+
         test_mol = Chem.RWMol(rwmol)
         test_atom = test_mol.GetAtomWithIdx(atom_idx)
         test_atom.SetAtomicNum(Chem.GetPeriodicTable().GetAtomicNumber(new_atom))
-        
+
         try:
             Chem.SanitizeMol(test_mol)
             return True
         except Chem.rdchem.MolSanitizeException:
             return False
-        
+
     def explore_atom_modification_space(self, mol: Chem.Mol, modification_type: str = 'random', exploration_depth: int = 1) -> List[Chem.Mol]:
         modification_variants = []
         modifications = {
@@ -236,26 +236,26 @@ class ModifyAtom:
             'add': self.add_atom,
             'remove': self.remove_atom
         }
-        
+
         for _ in range(exploration_depth):
             current_mol = Chem.RWMol(mol)
-            
+
             num_mods = random.randint(1, 3)
-            
+
             for _ in range(num_mods):
                 action = random.randint(0, len(self.substitution_atoms) - 1)
 
                 if modification_type == 'random':
                     modification_type = random.choice(['add', 'remove', 'modify'])
-                
+
                 current_mol = modifications[modification_type](current_mol, action)
-                
+
                 if current_mol is None:
                     break
-            
+
             if current_mol is not None:
                 modification_variants.append(current_mol)
-        
+
         return list(set(modification_variants))
 
 
@@ -273,7 +273,7 @@ if __name__ == "__main__":
                     'FC(F)(C1=CC(CSC2=NN=C(C3=CC4=C(N=CS4)C=C3)O2)=CC=C1OC)F',
                     'O=C(C1CC1)NC2=NC=CC(C3=CC=C(C4=NOC=N4)S3)=C2',
                     'O=C(N(SC1=O)C2=C3C=CC=CC3=CC=C2)N1CC4=CC=CC=C4']
-    
+
     modifier = ModifyAtom(setup_logger())
     modified_mols = []
 
@@ -281,7 +281,7 @@ if __name__ == "__main__":
         mol = Chem.MolFromSmiles(smile)
         modified_mol = modifier.explore_atom_modification_space(mol, 'random', 3)
         modified_mols.extend(modified_mol)
-    
+
     modified_mols = [Chem.MolToSmiles(mol) for mol in modified_mols]
 
     print(modified_mols)
@@ -291,4 +291,3 @@ if __name__ == "__main__":
         print("Lists are same")
     else:
         print("Lists are not same")
-

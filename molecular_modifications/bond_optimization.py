@@ -45,18 +45,18 @@ class ModifyBond:
                             modified_mol = strategy(mol, rwmol, atom_idx_pair)
                         else:
                             modified_mol = strategy(mol, rwmol, atom_idx_pair, bond_indices, batch)
-                        if modified_mol != mol:
+                        if modified_mol is not None and modified_mol != mol:
                             if self.log:
                                 self.logger.info(f"Successful bond {chosen_action} operation.")
                             return Chem.MolToSmiles(modified_mol)
                     except Exception as e:
                         if self.log:
                             self.logger.warning(f"{chosen_action.capitalize()} failed for atom_idx_pair {atom_idx_pair}, bond_idx {bond_idx}: {e}")
-                        return Chem.MolToSmiles(mol)
-        
+                        return None
+
         if self.log:
             self.logger.error("All bond modification attempts failed.")
-        return Chem.MolToSmiles(mol)
+        return None
 
     def _modify_bond(self, mol, rwmol, atom_idx_pair, bond_indices, batch):
         for bond in self.bond_types:
@@ -75,39 +75,49 @@ class ModifyBond:
                     except Exception as e:
                         if self.log:
                             self.logger.warning(f"Modification to bond {bond_idx} caused an error: {e}. Final molecule not fully sanitized.")
-                        return mol
-                    
+                        return None
+
                 if successful_modifications == 0:
                     if self.log:
                         self.logger.error("No bond modifications were successful.")
-                    return mol
+                    return None
             
             else:
                 bond = self._get_bond_by_indices(rwmol, atom_idx_pair)
-                if bond:
-                    bond_idx = bond.GetIdx()
-                    if not self.bond_rule_fn or self.bond_rule_fn(bond):  
-                        try:
-                            rwmol.RemoveBond(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
-                            rwmol.AddBond(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx(), new_bond_type)
-                            Chem.SanitizeMol(rwmol)
-                            return Chem.Mol(rwmol)
-                        except Exception as e:
-                            if self.log:
-                                self.logger.warning(f"Modification to bond {bond_idx} caused an error: {e}. Final molecule not fully sanitized.")
-                            return mol
-                            
-    def _addbond(self, mol, rwmol, atom_idx_pair):
-        for bond in self.bond_types:
-            new_bond_type = bond
+                if not bond:
+                    return None
+                if bond.GetBondType() == new_bond_type:
+                    continue
+                bond_idx = bond.GetIdx()
+                if not self.bond_rule_fn or self.bond_rule_fn(bond):
+                    try:
+                        rwmol.RemoveBond(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx())
+                        rwmol.AddBond(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx(), new_bond_type)
+                        Chem.SanitizeMol(rwmol)
+                        return Chem.Mol(rwmol)
+                    except Exception as e:
+                        if self.log:
+                            self.logger.warning(f"Modification to bond {bond_idx} caused an error: {e}. Final molecule not fully sanitized.")
+                        return None
+        return None
 
+    def _addbond(self, mol, rwmol, atom_idx_pair):
+        for bond_type in self.bond_types:
             try:
-                rwmol = self._add_bond(mol, rwmol, atom_idx_pair[0], atom_idx_pair[1], new_bond_type)
-                return Chem.Mol(rwmol)
+                candidate_rwmol = self._add_bond(mol, rwmol, atom_idx_pair[0], atom_idx_pair[1], bond_type)
             except Exception as e:
                 if self.log:
                     self.logger.error(f"Bond addition failed due to error {e}.")
-                return mol
+                continue
+
+            if candidate_rwmol is mol:
+                continue
+
+            new_bond = candidate_rwmol.GetBondBetweenAtoms(atom_idx_pair[0], atom_idx_pair[1])
+            if new_bond is not None and self.bond_rule_fn(new_bond):
+                return Chem.Mol(candidate_rwmol)
+
+        return None
             
     def _removebond(self, mol, rwmol, atom_idx_pair, bond_indices, batch):
         if batch:
@@ -120,9 +130,12 @@ class ModifyBond:
         else:
             bond = self._get_bond_by_indices(rwmol, atom_idx_pair)
             if bond:
-                if not self.bond_rule_fn or self.bond_rule_fn(bond):  
-                    rwmol = self._remove_bond(mol, rwmol, bond.GetIdx())
-                    return Chem.Mol(rwmol)
+                if not self.bond_rule_fn or self.bond_rule_fn(bond):
+                    result = self._remove_bond(mol, rwmol, bond.GetIdx())
+                    if result is mol:
+                        return None
+                    return Chem.Mol(result)
+        return None
 
     def get_optimal_bond_sites(self, mol, allowed_bond_types=None, exclude_hydrogens=True):
         if allowed_bond_types is None:
