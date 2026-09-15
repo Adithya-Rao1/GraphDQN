@@ -8,6 +8,15 @@ import rdkit
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit import DataStructs
+from rdkit import RDLogger
+
+# The Modify* classes below try many candidate edits per step and discard the
+# ones that fail sanitization/valence checks -- that's expected, already
+# handled via try/except, and produces a flood of RDKit C++-level warnings
+# ("Explicit valence...", "non-ring atom marked aromatic") that aren't
+# actionable. Silence them; real issues are still surfaced via each class's
+# own Python logger when log=True.
+RDLogger.DisableLog('rdApp.*')
 
 from molecular_modifications.bioisosteres_optimization import ModifyBioisosteres
 from molecular_modifications.atom_optimization import ModifyAtom

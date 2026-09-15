@@ -39,20 +39,19 @@ class ModifyBond:
         strategy = modification_strategies.get(chosen_action, modification_strategies['random'])
 
         for atom_idx_pair in atom_indices:
-                for bond_idx in bond_indices:
-                    try:
-                        if strategy == self._addbond:
-                            modified_mol = strategy(mol, rwmol, atom_idx_pair)
-                        else:
-                            modified_mol = strategy(mol, rwmol, atom_idx_pair, bond_indices, batch)
-                        if modified_mol is not None:
-                            if self.log:
-                                self.logger.info(f"Successful bond {chosen_action} operation.")
-                            return Chem.MolToSmiles(modified_mol)
-                    except Exception as e:
-                        if self.log:
-                            self.logger.warning(f"{chosen_action.capitalize()} failed for atom_idx_pair {atom_idx_pair}, bond_idx {bond_idx}: {e}")
-                        continue
+            try:
+                if strategy == self._addbond:
+                    modified_mol = strategy(mol, rwmol, atom_idx_pair)
+                else:
+                    modified_mol = strategy(mol, rwmol, atom_idx_pair, bond_indices, batch)
+                if modified_mol is not None:
+                    if self.log:
+                        self.logger.info(f"Successful bond {chosen_action} operation.")
+                    return Chem.MolToSmiles(modified_mol)
+            except Exception as e:
+                if self.log:
+                    self.logger.warning(f"{chosen_action.capitalize()} failed for atom_idx_pair {atom_idx_pair}: {e}")
+                continue
 
         if self.log:
             self.logger.error("All bond modification attempts failed.")
