@@ -1,8 +1,11 @@
 """Contains constants used throughout ADMET-AI."""
+import os
 from importlib import resources
 from pathlib import Path
 
-_DATA_ROOT = Path(__file__).resolve().parent.parent / "GraphDQN_Data"
+_DATA_ROOT = Path(os.environ.get(
+    "GRAPHDQN_DATA_ROOT", str(Path(__file__).resolve().parent.parent / "GraphDQN_Data")
+))
 
 DEFAULT_ADMET_PATH = _DATA_ROOT / "admet_data" / "admet.csv"
 DEFAULT_DRUGBANK_PATH = _DATA_ROOT / "admet_data" / "drugbank_approved.csv"
