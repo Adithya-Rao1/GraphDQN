@@ -82,7 +82,12 @@ def get_all_actions(state):
         modify_bio.apply_modification(mol, 'phenyl', 'pyrrole')
     )
 
-    return {smiles for smiles in actions if smiles}
+    candidates = {smiles for smiles in actions if smiles and Chem.MolFromSmiles(smiles) is not None}
+
+    if not candidates:
+        return {state}
+
+    return candidates
 
 def goal_by_similarity(smile, target_smile):
     smile_struct = AllChem.GetMorganFingerprint(Chem.MolFromSmiles(smile), radius=2)
