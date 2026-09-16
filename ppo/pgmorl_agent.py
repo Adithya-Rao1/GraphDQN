@@ -22,7 +22,7 @@ VALID_EDIT_COUNT_MODES = ("fixed", "random", "learned")
 DEFAULT_LLM_MODEL_NAME = "Qwen/Qwen2.5-7B-Instruct"
 
 
-def _single_graph_batch(smiles: str, device):
+def single_graph_batch(smiles: str, device):
     loader = obs_to_loader(create_graph([smiles]), batch_size=1)
     (batch,) = list(loader)
     return batch.to(device)
@@ -147,6 +147,9 @@ class PGMORLAgent:
                 llm_model_name, {"actor": actor_lora, "critic": critic_lora},
                 torch_dtype=llm_torch_dtype,
             )
+            
+            for p in self.shared_llm_backbone[1].parameters():
+                p.requires_grad = False
 
         self.actor = GNNLLMActor(
             num_edit_ops=len(catalog), hidden_dim=hidden_dim, use_llm=use_llm,
@@ -207,7 +210,7 @@ class PGMORLAgent:
             return random.randint(lo, hi), None
 
         # learned
-        batch = _single_graph_batch(state_smiles, self.device)
+        batch = single_graph_batch(state_smiles, self.device)
         descriptor = [self._descriptor_text(state_smiles, target_name)] if self.actor.use_llm else None
         with torch.no_grad():
             _, k_logits = self.actor(batch, descriptor)
@@ -222,7 +225,7 @@ class PGMORLAgent:
 
         current_smiles = initial_state
         for _ in range(k):
-            batch = _single_graph_batch(current_smiles, self.device)
+            batch = single_graph_batch(current_smiles, self.device)
             descriptor = [self._descriptor_text(current_smiles, target_name)] if self.actor.use_llm else None
             with torch.no_grad():
                 edit_logits, _ = self.actor(batch, descriptor)
@@ -254,7 +257,7 @@ class PGMORLAgent:
             if edit_ids:
                 break
 
-        value_batch = _single_graph_batch(initial_state, self.device)
+        value_batch = single_graph_batch(initial_state, self.device)
         descriptor = [self._descriptor_text(initial_state, target_name)] if self.critic.use_llm else None
         with torch.no_grad():
             value_vector = self.critic(value_batch, descriptor).squeeze(0)
@@ -300,7 +303,7 @@ class PGMORLAgent:
         total_log_prob = torch.zeros((), device=self.device)
         total_entropy = torch.zeros((), device=self.device)
         for state, action_idx in zip(entry.pre_edit_states, entry.edit_indices):
-            batch = _single_graph_batch(state, self.device)
+            batch = single_graph_batch(state, self.device)
             descriptor = [self._descriptor_text(state, target_name)] if self.actor.use_llm else None
             edit_logits, _ = self.actor(batch, descriptor)
             action_tensor = torch.tensor(action_idx, device=self.device)
@@ -357,7 +360,7 @@ class PGMORLAgent:
                     entry = self.memory[i]
                     log_prob, entropy = self._recompute_macro_log_prob_and_entropy(entry, target_name)
                     if entry.k_log_prob is not None and self.actor.k_head is not None:
-                        k_batch = _single_graph_batch(entry.initial_state, self.device)
+                        k_batch = single_graph_batch(entry.initial_state, self.device)
                         k_descriptor = [self._descriptor_text(entry.initial_state, target_name)] if self.actor.use_llm else None
                         _, k_logits = self.actor(k_batch, k_descriptor)
                         k_action = torch.tensor(entry.k_used - 1, device=self.device)
@@ -365,7 +368,7 @@ class PGMORLAgent:
                         log_prob = log_prob + k_log_prob
                         entropy = entropy + k_entropy
 
-                    value_batch = _single_graph_batch(entry.initial_state, self.device)
+                    value_batch = single_graph_batch(entry.initial_state, self.device)
                     value_descriptor = [self._descriptor_text(entry.initial_state, target_name)] if self.critic.use_llm else None
                     value_vector = self.critic(value_batch, value_descriptor).squeeze(0)
 

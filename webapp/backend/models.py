@@ -172,6 +172,7 @@ class EditOutcomeLog(Base):
     step_index = Column(Integer, nullable=False)
     parent_smiles = Column(String, nullable=False)
     applied_edit_ids = Column(JSON, nullable=False)  # list[str], possibly empty (zero-edit fallback step)
+    pre_edit_states = Column(JSON, nullable=False)  # list[str]
     k_edits_used = Column(Integer, nullable=False)
     edit_count_mode = Column(String, nullable=False)  # "fixed" | "random" | "learned"
     resulting_smiles = Column(String, nullable=False)
