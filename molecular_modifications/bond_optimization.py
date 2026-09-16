@@ -171,7 +171,7 @@ class ModifyBond:
                     valence_j = VALENCE_ELECTRON_COUNTS.get(atom_j.GetSymbol(), None)
 
                     if valence_i and valence_j:
-                        if (atom_i.GetValence(Chem.ValenceType.EXPLICIT) < valence_i and atom_j.GetValence(Chem.ValenceType.EXPLICIT) < valence_j):
+                        if (atom_i.GetExplicitValence() < valence_i and atom_j.GetExplicitValence() < valence_j):
                             optimal_sites.append((atom_i.GetIdx(), atom_j.GetIdx()))
 
         return optimal_sites
