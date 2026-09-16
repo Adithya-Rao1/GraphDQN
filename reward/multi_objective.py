@@ -94,7 +94,10 @@ def compute_reward(
 ) -> dict:
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
-        return {"reward": 0.0, "admet": 0.0, "binding_uM": None, "sa_score": None, "selectivity": None}
+        return {
+            "reward": 0.0, "admet": 0.0, "binding_uM": None, "sa_score": None, "selectivity": None,
+            "reward_vector": [0.0, 0.0, 0.0, 0.0],
+        }
 
     admet_model = admet_model if admet_model is not None else ADMETModel(device)
     binding_model = binding_model if binding_model is not None else Plapt(device=str(device))
@@ -134,6 +137,12 @@ def compute_reward(
         "binding_uM": binding_uM,
         "sa_score": sa_score,
         "selectivity": selectivity,
+        "reward_vector": [
+            admet_reward,
+            binding_score,
+            sa_reward,
+            selectivity_score if off_target_seq else 0.0,
+        ],
     }
 
 
