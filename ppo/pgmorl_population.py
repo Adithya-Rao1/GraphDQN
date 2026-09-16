@@ -50,11 +50,16 @@ class ParetoSweepResult:
 
 
 def measure_objective_vector(agent: PGMORLAgent, env_factory: Callable[[], object],
-                               num_eval_episodes: int, max_steps: int) -> List[float]:
+                               num_eval_episodes: int, max_steps: int,
+                               cancel_event: Optional[threading.Event] = None) -> List[float]:
     agent.memory.clear()
     for _ in range(num_eval_episodes):
+        if cancel_event is not None and cancel_event.is_set():
+            raise SweepCancelled("Sweep cancelled mid-evaluation")
         env = env_factory()
         for _ in range(max_steps):
+            if cancel_event is not None and cancel_event.is_set():
+                raise SweepCancelled("Sweep cancelled mid-evaluation")
             entry = agent.act(env)
             if entry.done:
                 break
@@ -74,6 +79,8 @@ def train_member_one_round(member: PopulationMember, env_factory: Callable[[], o
             raise SweepCancelled(f"Sweep cancelled mid-round for {member.member_id}")
         env = env_factory()
         for _ in range(max_steps):
+            if cancel_event is not None and cancel_event.is_set():
+                raise SweepCancelled(f"Sweep cancelled mid-episode for {member.member_id}")
             entry = member.agent.act(env)
             if entry.done:
                 break
@@ -121,7 +128,7 @@ def run_pareto_sweep_sequential(
 
     for member in members:
         member.objective_vector = measure_objective_vector(
-            member.agent, env_factory, eval_episodes_per_round, max_steps,
+            member.agent, env_factory, eval_episodes_per_round, max_steps, cancel_event=cancel_event,
         )
 
     for round_idx in range(num_rounds):
@@ -148,7 +155,7 @@ def run_pareto_sweep_sequential(
                                     cancel_event=cancel_event, on_step_scored=on_step_scored)
 
             objective_after = measure_objective_vector(
-                member.agent, env_factory, eval_episodes_per_round, max_steps,
+                member.agent, env_factory, eval_episodes_per_round, max_steps, cancel_event=cancel_event,
             )
             member.objective_vector = objective_after
 

@@ -86,7 +86,7 @@ def run_pareto_sweep_concurrent(
 
     for member in members:
         member.objective_vector = measure_objective_vector(
-            member.agent, env_factory, eval_episodes_per_round, max_steps,
+            member.agent, env_factory, eval_episodes_per_round, max_steps, cancel_event=cancel_event,
         )
 
     def _run_one_member(member: PopulationMember) -> None:
@@ -99,7 +99,7 @@ def run_pareto_sweep_concurrent(
         )
 
         objective_after = measure_objective_vector(
-            member.agent, env_factory, eval_episodes_per_round, max_steps,
+            member.agent, env_factory, eval_episodes_per_round, max_steps, cancel_event=cancel_event,
         )
         member.objective_vector = objective_after
 

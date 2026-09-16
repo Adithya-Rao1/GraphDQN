@@ -1,3 +1,4 @@
+import os
 import shutil
 import threading
 from datetime import datetime, timezone
@@ -22,10 +23,7 @@ from webapp.backend.rl_bridge.pgmorl_runner import run_pareto_sweep
 def _finish_cancelled(db, sweep_id: int, error: Exception) -> None:
     sweep = db.get(ParetoSweepRun, sweep_id)
     if job_manager.should_discard_pareto_sweep(sweep_id):
-        checkpoint_dir = None
-        result = sweep.result_summary_json
-        if result:
-            checkpoint_dir = result.get("checkpoint_dir")
+        checkpoint_dir = os.path.join(PARETO_SWEEP_CHECKPOINT_ROOT, f"sweep{sweep_id}")
         db.query(EditOutcomeLog).filter(EditOutcomeLog.pareto_sweep_id == sweep_id).delete()
         db.query(PGMORLPerformanceRecord).filter(PGMORLPerformanceRecord.pareto_sweep_id == sweep_id).delete()
         db.query(OptimizationConfig).filter(
@@ -54,9 +52,9 @@ def run_pareto_sweep_job(sweep_id: int, cancel_event: threading.Event) -> None:
         base_config = sweep.base_config
         reward_config = _reward_config_from(base_config)
 
-        member_config_ids: dict[int, int] = {}  # member_index -> OptimizationConfig.id
-        step_counters: dict[str, int] = {}  # member_id -> running EditOutcomeLog step counter
-        step_lock = threading.Lock()  # on_step_scored can fire from multiple concurrent-sweep threads
+        member_config_ids: dict[int, int] = {}  
+        step_counters: dict[str, int] = {} 
+        step_lock = threading.Lock()  
         edit_id_to_index = {op.id: i for i, op in enumerate(build_edit_catalog())}
 
         def on_member_created(member_index: int, weight_vector: list) -> None:
@@ -102,8 +100,6 @@ def run_pareto_sweep_job(sweep_id: int, cancel_event: threading.Event) -> None:
 
         def progress_cb(current_round: int, total_rounds: int, members_snapshot: list,
                          new_records: list, round_steps: int):
-            # members_snapshot entries are keyed by member_id == f"member_{i}"
-            # (see rl_bridge/pgmorl_runner.py's own docstring on this coupling).
             for entry in members_snapshot:
                 member_index = int(entry["member_id"].rsplit("_", 1)[-1])
                 entry["config_id"] = member_config_ids.get(member_index)
@@ -209,7 +205,7 @@ def run_pareto_sweep_job(sweep_id: int, cancel_event: threading.Event) -> None:
         db.commit()
     except SweepCancelled as e:
         _finish_cancelled(db, sweep_id, e)
-    except Exception as e:  # noqa: BLE001 -- job boundary, must not raise into the thread pool silently
+    except Exception as e:
         sweep = db.get(ParetoSweepRun, sweep_id)
         sweep.status = "failed"
         sweep.error_message = str(e)
