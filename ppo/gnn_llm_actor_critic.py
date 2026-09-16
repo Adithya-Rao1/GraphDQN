@@ -152,7 +152,7 @@ class _GNNLLMBackbone(nn.Module):
             if hasattr(self.llm, "set_adapter"):
                 self.llm.set_adapter(self._adapter_name)
             llm_out = self.llm(**encoded, output_hidden_states=True)
-            hidden_states = getattr(llm_out, "last_hidden_state", None)
+            hidden_states = getattr(llm_out, "last_hidden_state", None).float()
             if hidden_states is None:
                 hidden_states = llm_out.hidden_states[-1]
             fused = self.fusion(graph_embedding, hidden_states, encoded["attention_mask"])

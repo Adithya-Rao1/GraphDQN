@@ -47,7 +47,7 @@ def main():
     assert actor.llm is critic.llm, "actor.llm and critic.llm must be the SAME object"
     print("[PASS] actor.llm is critic.llm (base weights genuinely shared, not duplicated)")
 
-    batch = _fake_graph_batch()
+    batch = _fake_graph_batch().to(device)
     descriptor = ["Molecule CCO against target alpha_synuclein; prioritizing ADMET (0.30)."]
     edit_logits, _ = actor(batch, descriptor)
     value_vector = critic(batch, descriptor)
