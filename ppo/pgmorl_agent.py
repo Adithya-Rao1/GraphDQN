@@ -179,6 +179,9 @@ class PGMORLAgent:
             entry.reward = float(result["reward"])
             entry.reward_vector = list(result["reward_vector"])
 
+        if self.actor.use_llm and torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
     def _descriptor_text(self, smiles: str, target_name: Optional[str]) -> str:
         w = self.weight_vector
         target_clause = f" against target {target_name}" if target_name else ""
@@ -375,6 +378,10 @@ class PGMORLAgent:
             last_entropy = entropy_bonus.item()
 
         self.memory.clear()
+
+        if self.actor.use_llm and torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
         return {
             "policy_loss": last_policy_loss,
             "value_loss": last_value_loss,
