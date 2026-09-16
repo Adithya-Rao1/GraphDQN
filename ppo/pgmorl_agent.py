@@ -89,6 +89,7 @@ class PGMORLAgent:
         value_coef: float = 0.5,
         lr: float = 3e-4,
         ppo_minibatch_size: Optional[int] = 4,
+        shared_llm_backbone=None,
     ):
         if edit_count_mode not in VALID_EDIT_COUNT_MODES:
             raise ValueError(f"edit_count_mode must be one of {VALID_EDIT_COUNT_MODES}, got {edit_count_mode!r}")
@@ -138,8 +139,8 @@ class PGMORLAgent:
         self.reward_batch_size = reward_batch_size
         self.ppo_minibatch_size = ppo_minibatch_size
 
-        self.shared_llm_backbone = None
-        if use_llm:
+        self.shared_llm_backbone = shared_llm_backbone
+        if use_llm and self.shared_llm_backbone is None:
             llm_model_name = llm_model_name or DEFAULT_LLM_MODEL_NAME
             actor_lora = lora_config if lora_config is not None else default_qwen2_lora_config()
             critic_lora = lora_config if lora_config is not None else default_qwen2_lora_config()
@@ -147,7 +148,7 @@ class PGMORLAgent:
                 llm_model_name, {"actor": actor_lora, "critic": critic_lora},
                 torch_dtype=llm_torch_dtype,
             )
-            
+        if use_llm and self.shared_llm_backbone is not None:
             for p in self.shared_llm_backbone[1].parameters():
                 p.requires_grad = False
 

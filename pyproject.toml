@@ -15,6 +15,7 @@ dependencies = [
     "rdkit",
     "transformers",
     "peft",
+    "pymoo",
     "onnxruntime",
     "diskcache",
     "tqdm",
