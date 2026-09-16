@@ -67,26 +67,64 @@ class CrossAttentionFusion(nn.Module):
         return fused  
 
 
+def build_shared_llm_backbone(llm_model_name: str, adapter_lora_configs: dict):
+    from transformers import AutoModel, AutoTokenizer
+    from peft import get_peft_model
+
+    tokenizer = AutoTokenizer.from_pretrained(llm_model_name)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    base_llm = AutoModel.from_pretrained(llm_model_name)
+
+    names = list(adapter_lora_configs.keys())
+    peft_model = get_peft_model(base_llm, adapter_lora_configs[names[0]], adapter_name=names[0])
+    for name in names[1:]:
+        peft_model.add_adapter(name, adapter_lora_configs[name])
+
+    return tokenizer, peft_model
+
+
+def default_qwen2_lora_config(r: int = 16, lora_alpha: int = 32, lora_dropout: float = 0.05):
+    from peft import LoraConfig
+
+    return LoraConfig(
+        r=r, lora_alpha=lora_alpha, lora_dropout=lora_dropout,
+        target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+        bias="none",
+    )
+
+
 class _GNNLLMBackbone(nn.Module):
     def __init__(self, hidden_dim: int = 256, feature_dim: int = NODE_FEATURE_DIM,
                  edge_dim: int = EDGE_FEATURE_DIM, use_llm: bool = False,
-                 llm_model_name: Optional[str] = None, lora_config=None):
+                 llm_model_name: Optional[str] = None, lora_config=None,
+                 shared_llm_backbone=None, adapter_name: Optional[str] = None):
         super().__init__()
         self.use_llm = use_llm
         self.encoder = GINEConvEncoder(hidden_dim=hidden_dim, feature_dim=feature_dim, edge_dim=edge_dim)
         graph_dim = self.encoder.output_dim
 
         if use_llm:
-            if not llm_model_name:
-                raise ValueError("llm_model_name is required when use_llm=True")
-            from transformers import AutoModel, AutoTokenizer
-            from peft import get_peft_model
+            if shared_llm_backbone is not None:
+                if adapter_name is None:
+                    raise ValueError("adapter_name is required when shared_llm_backbone is provided")
+                self.tokenizer, self.llm = shared_llm_backbone
+                self._adapter_name = adapter_name
+            else:
+                if not llm_model_name:
+                    raise ValueError("llm_model_name is required when use_llm=True and no shared_llm_backbone")
+                from transformers import AutoModel, AutoTokenizer
+                from peft import get_peft_model
 
-            self.tokenizer = AutoTokenizer.from_pretrained(llm_model_name)
-            if self.tokenizer.pad_token is None:
-                self.tokenizer.pad_token = self.tokenizer.eos_token
-            base_llm = AutoModel.from_pretrained(llm_model_name)
-            self.llm = get_peft_model(base_llm, lora_config) if lora_config is not None else base_llm
+                self.tokenizer = AutoTokenizer.from_pretrained(llm_model_name)
+                if self.tokenizer.pad_token is None:
+                    self.tokenizer.pad_token = self.tokenizer.eos_token
+                base_llm = AutoModel.from_pretrained(llm_model_name)
+                self._adapter_name = adapter_name or "default"
+                self.llm = (
+                    get_peft_model(base_llm, lora_config, adapter_name=self._adapter_name)
+                    if lora_config is not None else base_llm
+                )
             llm_dim = self.llm.config.hidden_size
             self.fusion = CrossAttentionFusion(graph_dim, llm_dim)
             self.head_dim = llm_dim
@@ -111,6 +149,8 @@ class _GNNLLMBackbone(nn.Module):
             encoded = self.tokenizer(
                 list(descriptor_texts), return_tensors="pt", padding=True, truncation=True,
             ).to(device)
+            if hasattr(self.llm, "set_adapter"):
+                self.llm.set_adapter(self._adapter_name)
             llm_out = self.llm(**encoded, output_hidden_states=True)
             hidden_states = getattr(llm_out, "last_hidden_state", None)
             if hidden_states is None:
@@ -126,9 +166,11 @@ class GNNLLMActor(_GNNLLMBackbone):
     def __init__(self, num_edit_ops: int, hidden_dim: int = 256,
                  feature_dim: int = NODE_FEATURE_DIM, edge_dim: int = EDGE_FEATURE_DIM,
                  use_llm: bool = False, llm_model_name: Optional[str] = None, lora_config=None,
+                 shared_llm_backbone=None, adapter_name: Optional[str] = None,
                  edit_count_mode: str = "fixed", k_max: Optional[int] = None):
         super().__init__(hidden_dim=hidden_dim, feature_dim=feature_dim, edge_dim=edge_dim,
-                          use_llm=use_llm, llm_model_name=llm_model_name, lora_config=lora_config)
+                          use_llm=use_llm, llm_model_name=llm_model_name, lora_config=lora_config,
+                          shared_llm_backbone=shared_llm_backbone, adapter_name=adapter_name)
         self.edit_count_mode = edit_count_mode
         self.k_max = k_max
 
@@ -152,9 +194,11 @@ class GNNLLMCritic(_GNNLLMBackbone):
 
     def __init__(self, hidden_dim: int = 256, feature_dim: int = NODE_FEATURE_DIM,
                  edge_dim: int = EDGE_FEATURE_DIM, use_llm: bool = False,
-                 llm_model_name: Optional[str] = None, lora_config=None):
+                 llm_model_name: Optional[str] = None, lora_config=None,
+                 shared_llm_backbone=None, adapter_name: Optional[str] = None):
         super().__init__(hidden_dim=hidden_dim, feature_dim=feature_dim, edge_dim=edge_dim,
-                          use_llm=use_llm, llm_model_name=llm_model_name, lora_config=lora_config)
+                          use_llm=use_llm, llm_model_name=llm_model_name, lora_config=lora_config,
+                          shared_llm_backbone=shared_llm_backbone, adapter_name=adapter_name)
         self.value_head = nn.Linear(self.head_dim, self.OBJECTIVE_DIM)
 
     def forward(self, data_batch, descriptor_texts: Optional[Sequence[str]] = None) -> torch.Tensor:

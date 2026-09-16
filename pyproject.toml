@@ -14,6 +14,7 @@ dependencies = [
     "torch_geometric",
     "rdkit",
     "transformers",
+    "peft",
     "onnxruntime",
     "diskcache",
     "tqdm",

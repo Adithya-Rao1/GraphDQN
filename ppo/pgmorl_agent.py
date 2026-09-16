@@ -8,10 +8,18 @@ import torch.optim as optim
 
 from dqn.utils import create_graph, obs_to_loader
 from molecular_modifications.macro_actions import EditOp, MacroActionResult, compose_macro_action
-from ppo.gnn_llm_actor_critic import GNNLLMActor, GNNLLMCritic, edit_log_prob_and_entropy, sample_edit
-from reward.multi_objective import RewardConfig, compute_reward
+from ppo.gnn_llm_actor_critic import (
+    GNNLLMActor,
+    GNNLLMCritic,
+    build_shared_llm_backbone,
+    default_qwen2_lora_config,
+    edit_log_prob_and_entropy,
+    sample_edit,
+)
+from reward.multi_objective import RewardConfig, compute_reward_batch
 
 VALID_EDIT_COUNT_MODES = ("fixed", "random", "learned")
+DEFAULT_LLM_MODEL_NAME = "Qwen/Qwen2.5-7B-Instruct"
 
 
 def _single_graph_batch(smiles: str, device):
@@ -22,17 +30,18 @@ def _single_graph_batch(smiles: str, device):
 
 @dataclass
 class MacroStepMemory:
-    pre_edit_states: List[str]       
-    edit_ids: List[str]              
-    edit_indices: List[int]           
-    old_edit_log_probs: List[float]  
-    initial_state: str                
+    pre_edit_states: List[str]
+    edit_ids: List[str]
+    edit_indices: List[int]
+    old_edit_log_probs: List[float]
+    initial_state: str
+    final_smiles: str
     k_used: int
-    k_log_prob: Optional[float]       
-    reward: float                    
-    reward_vector: List[float]        
-    value_scalar: float              
-    value_vector: List[float]         
+    k_log_prob: Optional[float]
+    reward: float  
+    reward_vector: List[float]  
+    value_scalar: float
+    value_vector: List[float]
     done: bool
 
 
@@ -124,29 +133,57 @@ class PGMORLAgent:
         self.entropy_coef = entropy_coef
         self.value_coef = value_coef
 
+        self.shared_llm_backbone = None
+        if use_llm:
+            llm_model_name = llm_model_name or DEFAULT_LLM_MODEL_NAME
+            actor_lora = lora_config if lora_config is not None else default_qwen2_lora_config()
+            critic_lora = lora_config if lora_config is not None else default_qwen2_lora_config()
+            self.shared_llm_backbone = build_shared_llm_backbone(
+                llm_model_name, {"actor": actor_lora, "critic": critic_lora},
+            )
+
         self.actor = GNNLLMActor(
             num_edit_ops=len(catalog), hidden_dim=hidden_dim, use_llm=use_llm,
             llm_model_name=llm_model_name, lora_config=lora_config,
+            shared_llm_backbone=self.shared_llm_backbone, adapter_name="actor" if use_llm else None,
             edit_count_mode=edit_count_mode, k_max=k_max,
         ).to(device)
         self.critic = GNNLLMCritic(
             hidden_dim=hidden_dim, use_llm=use_llm,
             llm_model_name=llm_model_name, lora_config=lora_config,
+            shared_llm_backbone=self.shared_llm_backbone, adapter_name="critic" if use_llm else None,
         ).to(device)
 
-        self.optimizer = optim.Adam(
-            list(self.actor.parameters()) + list(self.critic.parameters()), lr=lr,
-        )
+        seen_param_ids = set()
+        trainable_params = []
+        for p in list(self.actor.parameters()) + list(self.critic.parameters()):
+            if p.requires_grad and id(p) not in seen_param_ids:
+                seen_param_ids.add(id(p))
+                trainable_params.append(p)
+        self.optimizer = optim.Adam(trainable_params, lr=lr)
 
         self.memory: List[MacroStepMemory] = []
 
-    def _compute_reward(self, smiles: str) -> dict:
-        return compute_reward(
-            smiles=smiles, target_seq=self.target_seq, device=self.device,
-            off_target_seq=self.off_target_seq,
+    def _compute_rewards_for_memory(self) -> None:
+        """Backfill reward/reward_vector for every entry currently in
+        self.memory via ONE batched compute_reward_batch() call, instead of
+        one ADMET/PLAPT round-trip per macro-step during rollout. Safe to
+        defer this far: nothing during rollout (action selection in act(),
+        or env.step_macro()'s termination check) ever reads reward or
+        reward_vector -- only update()'s GAE computation does, so scoring
+        can happen once, right before that, over the whole episode's
+        macro-steps at once."""
+        if not self.memory:
+            return
+        results = compute_reward_batch(
+            [m.final_smiles for m in self.memory],
+            target_seq=self.target_seq, device=self.device, off_target_seq=self.off_target_seq,
             admet_model=self.admet_model, binding_model=self.binding_model, sa_model=self.sa_model,
             **self.reward_config.to_compute_reward_kwargs(),
         )
+        for entry, result in zip(self.memory, results):
+            entry.reward = float(result["reward"])
+            entry.reward_vector = list(result["reward_vector"])
 
     def _descriptor_text(self, smiles: str, target_name: Optional[str]) -> str:
         w = self.weight_vector
@@ -220,7 +257,6 @@ class PGMORLAgent:
         value_scalar = float(sum(w * v for w, v in zip(self.weight_vector, value_vector_list)))
 
         result = env.step_macro(final_smiles, edit_trace=edit_ids if edit_ids else None)
-        reward_result = self._compute_reward(final_smiles)
 
         memory_entry = MacroStepMemory(
             pre_edit_states=pre_edit_states,
@@ -228,10 +264,11 @@ class PGMORLAgent:
             edit_indices=edit_indices,
             old_edit_log_probs=old_log_probs,
             initial_state=initial_state,
+            final_smiles=final_smiles,
             k_used=len(edit_ids),
             k_log_prob=k_log_prob,
-            reward=float(reward_result["reward"]),
-            reward_vector=list(reward_result["reward_vector"]),
+            reward=0.0,
+            reward_vector=[0.0, 0.0, 0.0, 0.0],
             value_scalar=value_scalar,
             value_vector=value_vector_list,
             done=bool(result.terminated),
@@ -269,7 +306,10 @@ class PGMORLAgent:
 
     def update(self, ppo_epochs: int = 4, target_name: Optional[str] = None) -> dict:
         if not self.memory:
-            return {"policy_loss": 0.0, "value_loss": 0.0, "entropy": 0.0}
+            return {"policy_loss": 0.0, "value_loss": 0.0, "entropy": 0.0,
+                     "episode_reward": 0.0, "mean_reward": 0.0}
+
+        self._compute_rewards_for_memory()
 
         rewards = [m.reward for m in self.memory]
         values = [m.value_scalar for m in self.memory]
@@ -346,6 +386,8 @@ class PGMORLAgent:
             "value_loss": last_value_loss,
             "entropy": last_entropy,
             "mean_return": float(returns_tensor.mean().item()) if len(returns) else 0.0,
+            "episode_reward": rewards[-1],
+            "mean_reward": sum(rewards) / len(rewards),
         }
 
     def save_checkpoint(self, path: str):

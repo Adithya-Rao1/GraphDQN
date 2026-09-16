@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Dict, Optional, Sequence
+from typing import Dict, List, Optional, Sequence
 
 from rdkit import Chem
 
@@ -77,6 +77,93 @@ def _normalize_selectivity(selectivity: float) -> float:
     return selectivity / (selectivity + SELECTIVITY_SCALE)
 
 
+_INVALID_MOL_RESULT = {
+    "reward": 0.0, "admet": 0.0, "binding_uM": None, "sa_score": None, "selectivity": None,
+    "reward_vector": [0.0, 0.0, 0.0, 0.0],
+}
+
+
+def compute_reward_batch(
+    smiles_list: Sequence[str],
+    target_seq: str,
+    device,
+    off_target_seq: Optional[str] = None,
+    admet_weight: float = 0.3,
+    binding_weight: float = 0.5,
+    synthetic_weight: float = 0.2,
+    selectivity_weight: float = 0.3,
+    admet_model: Optional[ADMETModel] = None,
+    binding_model: Optional[Plapt] = None,
+    sa_model: Optional[SyntheticAccessibility] = None,
+    admet_properties: Optional[Sequence[str]] = None,
+    admet_directions: Optional[Dict[str, int]] = None,
+) -> List[dict]:
+    results: List[Optional[dict]] = [None] * len(smiles_list)
+    valid_indices: List[int] = []
+    valid_smiles: List[str] = []
+    valid_mols = []
+    for i, smiles in enumerate(smiles_list):
+        mol = Chem.MolFromSmiles(smiles)
+        if mol is None:
+            results[i] = dict(_INVALID_MOL_RESULT)
+        else:
+            valid_indices.append(i)
+            valid_smiles.append(smiles)
+            valid_mols.append(mol)
+
+    if not valid_smiles:
+        return results
+
+    admet_model = admet_model if admet_model is not None else ADMETModel(device)
+    binding_model = binding_model if binding_model is not None else Plapt(device=str(device))
+    sa_model = sa_model if sa_model is not None else SyntheticAccessibility()
+
+    admet_preds_df = admet_model.predict(list(valid_smiles))
+    admet_rewards = [
+        compute_admet_reward(admet_preds_df.iloc[j].to_dict(), admet_properties, admet_directions)
+        for j in range(len(valid_smiles))
+    ]
+
+    binding_uMs = run_predictions(binding_model, target_seq, valid_smiles)
+    binding_scores = [_normalize_binding(b) for b in binding_uMs]
+
+    sa_scores = [sa_model.calculateScore(mol) for mol in valid_mols]
+    sa_rewards = [_normalize_sa_score(s) for s in sa_scores]
+
+    if off_target_seq:
+        off_target_uMs = run_predictions(binding_model, off_target_seq, valid_smiles)
+        selectivities = [compare_affinities(b, o) for b, o in zip(binding_uMs, off_target_uMs)]
+        selectivity_scores = [_normalize_selectivity(s) for s in selectivities]
+        scale = selectivity_weight / 3
+        rewards = [
+            (admet_weight - scale) * ar + (binding_weight - scale) * bs
+            + (synthetic_weight - scale) * sr + selectivity_weight * ss
+            for ar, bs, sr, ss in zip(admet_rewards, binding_scores, sa_rewards, selectivity_scores)
+        ]
+    else:
+        selectivities = [None] * len(valid_smiles)
+        selectivity_scores = [0.0] * len(valid_smiles)
+        rewards = [
+            admet_weight * ar + binding_weight * bs + synthetic_weight * sr
+            for ar, bs, sr in zip(admet_rewards, binding_scores, sa_rewards)
+        ]
+
+    for j, i in enumerate(valid_indices):
+        results[i] = {
+            "reward": rewards[j],
+            "admet": admet_rewards[j],
+            "binding_uM": binding_uMs[j],
+            "sa_score": sa_scores[j],
+            "selectivity": selectivities[j],
+            "reward_vector": [
+                admet_rewards[j], binding_scores[j], sa_rewards[j],
+                selectivity_scores[j] if off_target_seq else 0.0,
+            ],
+        }
+
+    return results
+
+
 def compute_reward(
     smiles: str,
     target_seq: str,
@@ -92,58 +179,13 @@ def compute_reward(
     admet_properties: Optional[Sequence[str]] = None,
     admet_directions: Optional[Dict[str, int]] = None,
 ) -> dict:
-    mol = Chem.MolFromSmiles(smiles)
-    if mol is None:
-        return {
-            "reward": 0.0, "admet": 0.0, "binding_uM": None, "sa_score": None, "selectivity": None,
-            "reward_vector": [0.0, 0.0, 0.0, 0.0],
-        }
-
-    admet_model = admet_model if admet_model is not None else ADMETModel(device)
-    binding_model = binding_model if binding_model is not None else Plapt(device=str(device))
-    sa_model = sa_model if sa_model is not None else SyntheticAccessibility()
-
-    admet_preds = admet_model.predict(smiles)
-    admet_reward = compute_admet_reward(admet_preds, admet_properties, admet_directions)
-
-    binding_uM = run_predictions(binding_model, target_seq, [smiles])[0]
-    sa_score = sa_model.calculateScore(mol)
-    binding_score = _normalize_binding(binding_uM)
-    sa_reward = _normalize_sa_score(sa_score)
-
-    if off_target_seq:
-        off_target_uM = run_predictions(binding_model, off_target_seq, [smiles])[0]
-        selectivity = compare_affinities(binding_uM, off_target_uM)
-        selectivity_score = _normalize_selectivity(selectivity)
-
-        scale = selectivity_weight / 3
-        reward = (
-            (admet_weight - scale) * admet_reward
-            + (binding_weight - scale) * binding_score
-            + (synthetic_weight - scale) * sa_reward
-            + selectivity_weight * selectivity_score
-        )
-    else:
-        selectivity = None
-        reward = (
-            admet_weight * admet_reward
-            + binding_weight * binding_score
-            + synthetic_weight * sa_reward
-        )
-
-    return {
-        "reward": reward,
-        "admet": admet_reward,
-        "binding_uM": binding_uM,
-        "sa_score": sa_score,
-        "selectivity": selectivity,
-        "reward_vector": [
-            admet_reward,
-            binding_score,
-            sa_reward,
-            selectivity_score if off_target_seq else 0.0,
-        ],
-    }
+    return compute_reward_batch(
+        [smiles], target_seq, device, off_target_seq=off_target_seq,
+        admet_weight=admet_weight, binding_weight=binding_weight,
+        synthetic_weight=synthetic_weight, selectivity_weight=selectivity_weight,
+        admet_model=admet_model, binding_model=binding_model, sa_model=sa_model,
+        admet_properties=admet_properties, admet_directions=admet_directions,
+    )[0]
 
 
 @dataclass
