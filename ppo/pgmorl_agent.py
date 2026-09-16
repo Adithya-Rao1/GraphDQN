@@ -88,6 +88,7 @@ class PGMORLAgent:
         entropy_coef: float = 0.01,
         value_coef: float = 0.5,
         lr: float = 3e-4,
+        ppo_minibatch_size: Optional[int] = 4,
     ):
         if edit_count_mode not in VALID_EDIT_COUNT_MODES:
             raise ValueError(f"edit_count_mode must be one of {VALID_EDIT_COUNT_MODES}, got {edit_count_mode!r}")
@@ -135,6 +136,7 @@ class PGMORLAgent:
         self.entropy_coef = entropy_coef
         self.value_coef = value_coef
         self.reward_batch_size = reward_batch_size
+        self.ppo_minibatch_size = ppo_minibatch_size
 
         self.shared_llm_backbone = None
         if use_llm:
@@ -337,51 +339,65 @@ class PGMORLAgent:
         )
         returns_tensor = torch.tensor(returns, dtype=torch.float32, device=self.device)
 
+        num_entries = len(self.memory)
+        minibatch_size = self.ppo_minibatch_size or num_entries
+
         last_policy_loss = last_value_loss = last_entropy = 0.0
         for _ in range(ppo_epochs):
-            new_log_probs = []
-            entropies = []
-            new_value_vectors = []
-            for entry in self.memory:
-                log_prob, entropy = self._recompute_macro_log_prob_and_entropy(entry, target_name)
-                if entry.k_log_prob is not None and self.actor.k_head is not None:
-                    k_batch = _single_graph_batch(entry.initial_state, self.device)
-                    k_descriptor = [self._descriptor_text(entry.initial_state, target_name)] if self.actor.use_llm else None
-                    _, k_logits = self.actor(k_batch, k_descriptor)
-                    k_action = torch.tensor(entry.k_used - 1, device=self.device)
-                    k_log_prob, k_entropy = edit_log_prob_and_entropy(k_logits.squeeze(0), k_action)
-                    log_prob = log_prob + k_log_prob
-                    entropy = entropy + k_entropy
+            indices = list(range(num_entries))
+            random.shuffle(indices)
 
-                value_batch = _single_graph_batch(entry.initial_state, self.device)
-                value_descriptor = [self._descriptor_text(entry.initial_state, target_name)] if self.critic.use_llm else None
-                value_vector = self.critic(value_batch, value_descriptor).squeeze(0)
+            for start in range(0, num_entries, minibatch_size):
+                batch_indices = indices[start:start + minibatch_size]
 
-                new_log_probs.append(log_prob)
-                entropies.append(entropy)
-                new_value_vectors.append(value_vector)
+                new_log_probs = []
+                entropies = []
+                new_value_vectors = []
+                for i in batch_indices:
+                    entry = self.memory[i]
+                    log_prob, entropy = self._recompute_macro_log_prob_and_entropy(entry, target_name)
+                    if entry.k_log_prob is not None and self.actor.k_head is not None:
+                        k_batch = _single_graph_batch(entry.initial_state, self.device)
+                        k_descriptor = [self._descriptor_text(entry.initial_state, target_name)] if self.actor.use_llm else None
+                        _, k_logits = self.actor(k_batch, k_descriptor)
+                        k_action = torch.tensor(entry.k_used - 1, device=self.device)
+                        k_log_prob, k_entropy = edit_log_prob_and_entropy(k_logits.squeeze(0), k_action)
+                        log_prob = log_prob + k_log_prob
+                        entropy = entropy + k_entropy
 
-            new_log_probs = torch.stack(new_log_probs)
-            entropies = torch.stack(entropies)
-            new_value_vectors = torch.stack(new_value_vectors) 
+                    value_batch = _single_graph_batch(entry.initial_state, self.device)
+                    value_descriptor = [self._descriptor_text(entry.initial_state, target_name)] if self.critic.use_llm else None
+                    value_vector = self.critic(value_batch, value_descriptor).squeeze(0)
 
-            ratio = torch.exp(new_log_probs - old_log_probs)
-            surrogate_1 = ratio * adv_tensor
-            surrogate_2 = torch.clamp(ratio, 1 - self.clip_eps, 1 + self.clip_eps) * adv_tensor
-            policy_loss = -torch.min(surrogate_1, surrogate_2).mean()
-            entropy_bonus = entropies.mean()
+                    new_log_probs.append(log_prob)
+                    entropies.append(entropy)
+                    new_value_vectors.append(value_vector)
 
-            value_loss = nn.functional.mse_loss(new_value_vectors, vector_returns_tensor)
+                new_log_probs = torch.stack(new_log_probs)
+                entropies = torch.stack(entropies)
+                new_value_vectors = torch.stack(new_value_vectors)
 
-            loss = policy_loss - self.entropy_coef * entropy_bonus + self.value_coef * value_loss
+                batch_adv = adv_tensor[batch_indices]
+                batch_old_log_probs = old_log_probs[batch_indices]
+                batch_vector_returns = vector_returns_tensor[batch_indices]
 
-            self.optimizer.zero_grad()
-            loss.backward()
-            self.optimizer.step()
+                ratio = torch.exp(new_log_probs - batch_old_log_probs)
+                surrogate_1 = ratio * batch_adv
+                surrogate_2 = torch.clamp(ratio, 1 - self.clip_eps, 1 + self.clip_eps) * batch_adv
+                policy_loss = -torch.min(surrogate_1, surrogate_2).mean()
+                entropy_bonus = entropies.mean()
 
-            last_policy_loss = policy_loss.item()
-            last_value_loss = value_loss.item()
-            last_entropy = entropy_bonus.item()
+                value_loss = nn.functional.mse_loss(new_value_vectors, batch_vector_returns)
+
+                loss = policy_loss - self.entropy_coef * entropy_bonus + self.value_coef * value_loss
+
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
+
+                last_policy_loss = policy_loss.item()
+                last_value_loss = value_loss.item()
+                last_entropy = entropy_bonus.item()
 
         self.memory.clear()
 
