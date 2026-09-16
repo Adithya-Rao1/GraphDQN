@@ -18,7 +18,8 @@ from synthetic_accessibility.sa_score import SyntheticAccessibility
 
 
 def run(target_name=DEFAULT_TARGET, seed=0, num_molecules=30, num_episodes=200,
-        max_steps=dqn_hyp.max_steps, fixed_edit_count=1, ppo_epochs=4,
+        max_steps=dqn_hyp.max_steps, edit_count_mode="fixed", fixed_edit_count=1,
+        edit_count_range=None, k_max=None, ppo_epochs=4,
         hidden_dim=256, lr=1e-4, gamma=dqn_hyp.gamma, gae_lambda=0.95, clip_eps=0.2,
         entropy_coef=0.01, value_coef=0.5,
         admet_weight=dqn_hyp.admet_weight, binding_weight=dqn_hyp.binding_weight,
@@ -48,8 +49,9 @@ def run(target_name=DEFAULT_TARGET, seed=0, num_molecules=30, num_episodes=200,
         hidden_dim=hidden_dim, use_llm=use_llm, llm_model_name=llm_model_name if use_llm else None,
         llm_torch_dtype=llm_torch_dtype, reward_batch_size=reward_batch_size,
         ppo_minibatch_size=ppo_minibatch_size,
-        edit_count_mode="fixed",
-        fixed_edit_count=fixed_edit_count, gamma=gamma, gae_lambda=gae_lambda,
+        edit_count_mode=edit_count_mode, fixed_edit_count=fixed_edit_count,
+        edit_count_range=edit_count_range, k_max=k_max,
+        gamma=gamma, gae_lambda=gae_lambda,
         clip_eps=clip_eps, entropy_coef=entropy_coef, value_coef=value_coef, lr=lr,
     )
 
@@ -110,7 +112,10 @@ def run(target_name=DEFAULT_TARGET, seed=0, num_molecules=30, num_episodes=200,
         "seed": seed,
         "num_molecules": num_molecules,
         "num_episodes": num_episodes,
-        "fixed_edit_count": fixed_edit_count,
+        "edit_count_mode": edit_count_mode,
+        "fixed_edit_count": fixed_edit_count if edit_count_mode == "fixed" else None,
+        "edit_count_range": list(edit_count_range) if (edit_count_mode == "random" and edit_count_range) else None,
+        "k_max": k_max if edit_count_mode == "learned" else None,
         "use_llm": use_llm,
         "llm_model_name": llm_model_name if use_llm else None,
         "final_reward": episode_rewards[-1] if episode_rewards else None,
@@ -140,7 +145,13 @@ if __name__ == "__main__":
     parser.add_argument("--num-molecules", type=int, default=30)
     parser.add_argument("--num-episodes", type=int, default=200)
     parser.add_argument("--max-steps", type=int, default=dqn_hyp.max_steps)
-    parser.add_argument("--fixed-edit-count", type=int, default=1)
+    parser.add_argument("--edit-count-mode", default="fixed", choices=["fixed", "random", "learned"])
+    parser.add_argument("--fixed-edit-count", type=int, default=1,
+                         help="Used when --edit-count-mode=fixed.")
+    parser.add_argument("--edit-count-range", type=int, nargs=2, default=None, metavar=("MIN", "MAX"),
+                         help="Used when --edit-count-mode=random, e.g. --edit-count-range 1 4.")
+    parser.add_argument("--k-max", type=int, default=None,
+                         help="Used when --edit-count-mode=learned -- k is sampled from {1..k_max}.")
     parser.add_argument("--ppo-epochs", type=int, default=4)
     parser.add_argument("--use-llm", action="store_true",)
     parser.add_argument("--llm-model-name", default=DEFAULT_LLM_MODEL_NAME)
@@ -159,7 +170,10 @@ if __name__ == "__main__":
         num_molecules=args.num_molecules,
         num_episodes=args.num_episodes,
         max_steps=args.max_steps,
+        edit_count_mode=args.edit_count_mode,
         fixed_edit_count=args.fixed_edit_count,
+        edit_count_range=tuple(args.edit_count_range) if args.edit_count_range else None,
+        k_max=args.k_max,
         ppo_epochs=args.ppo_epochs,
         use_llm=args.use_llm,
         llm_model_name=args.llm_model_name,

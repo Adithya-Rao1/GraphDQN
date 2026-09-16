@@ -36,10 +36,11 @@ class MacroStepMemory:
     old_edit_log_probs: List[float]
     initial_state: str
     final_smiles: str
-    k_used: int
+    k_used: int  
+    k_sampled: Optional[int]  
     k_log_prob: Optional[float]
-    reward: float  
-    reward_vector: List[float]  
+    reward: float
+    reward_vector: List[float]
     value_scalar: float
     value_vector: List[float]
     done: bool
@@ -275,6 +276,7 @@ class PGMORLAgent:
             initial_state=initial_state,
             final_smiles=final_smiles,
             k_used=len(edit_ids),
+            k_sampled=k if self.edit_count_mode == "learned" else None,
             k_log_prob=k_log_prob,
             reward=0.0,
             reward_vector=[0.0, 0.0, 0.0, 0.0],
@@ -364,7 +366,7 @@ class PGMORLAgent:
                         k_batch = single_graph_batch(entry.initial_state, self.device)
                         k_descriptor = [self._descriptor_text(entry.initial_state, target_name)] if self.actor.use_llm else None
                         _, k_logits = self.actor(k_batch, k_descriptor)
-                        k_action = torch.tensor(entry.k_used - 1, device=self.device)
+                        k_action = torch.tensor(entry.k_sampled - 1, device=self.device)
                         k_log_prob, k_entropy = edit_log_prob_and_entropy(k_logits.squeeze(0), k_action)
                         log_prob = log_prob + k_log_prob
                         entropy = entropy + k_entropy

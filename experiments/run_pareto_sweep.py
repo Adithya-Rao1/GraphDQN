@@ -25,7 +25,7 @@ from synthetic_accessibility.sa_score import SyntheticAccessibility
 def run(target_name=DEFAULT_TARGET, seed=0, num_molecules=30,
         population_size=6, concentration_alpha=20.0, num_rounds=5,
         episodes_per_round=10, eval_episodes_per_round=3, max_steps=dqn_hyp.max_steps,
-        ppo_epochs=4, fixed_edit_count=1, beta=1.0,
+        ppo_epochs=4, edit_count_mode="fixed", fixed_edit_count=1, edit_count_range=None, k_max=None, beta=1.0,
         admet_weight=dqn_hyp.admet_weight, binding_weight=dqn_hyp.binding_weight,
         synthetic_weight=dqn_hyp.synthetic_weight, selectivity_weight=0.0,
         use_llm=False, llm_model_name=DEFAULT_LLM_MODEL_NAME, llm_torch_dtype=torch.bfloat16,
@@ -72,8 +72,8 @@ def run(target_name=DEFAULT_TARGET, seed=0, num_molecules=30,
             admet_model=admet_model, binding_model=binding_model, sa_model=sa_model,
             use_llm=use_llm, shared_llm_backbone=shared_llm_backbone,
             llm_torch_dtype=llm_torch_dtype, reward_batch_size=reward_batch_size,
-            ppo_minibatch_size=ppo_minibatch_size, edit_count_mode="fixed",
-            fixed_edit_count=fixed_edit_count,
+            ppo_minibatch_size=ppo_minibatch_size, edit_count_mode=edit_count_mode,
+            fixed_edit_count=fixed_edit_count, edit_count_range=edit_count_range, k_max=k_max,
         )
 
     start_time = time.time()
@@ -161,7 +161,10 @@ if __name__ == "__main__":
     parser.add_argument("--eval-episodes-per-round", type=int, default=3)
     parser.add_argument("--max-steps", type=int, default=dqn_hyp.max_steps)
     parser.add_argument("--ppo-epochs", type=int, default=4)
+    parser.add_argument("--edit-count-mode", default="fixed", choices=["fixed", "random", "learned"])
     parser.add_argument("--fixed-edit-count", type=int, default=1)
+    parser.add_argument("--edit-count-range", type=int, nargs=2, default=None, metavar=("MIN", "MAX"))
+    parser.add_argument("--k-max", type=int, default=None)
     parser.add_argument("--beta", type=float, default=1.0)
     parser.add_argument("--use-llm", action="store_true")
     parser.add_argument("--llm-model-name", default=DEFAULT_LLM_MODEL_NAME)
@@ -186,7 +189,10 @@ if __name__ == "__main__":
         eval_episodes_per_round=args.eval_episodes_per_round,
         max_steps=args.max_steps,
         ppo_epochs=args.ppo_epochs,
+        edit_count_mode=args.edit_count_mode,
         fixed_edit_count=args.fixed_edit_count,
+        edit_count_range=tuple(args.edit_count_range) if args.edit_count_range else None,
+        k_max=args.k_max,
         beta=args.beta,
         use_llm=args.use_llm,
         llm_model_name=args.llm_model_name,
