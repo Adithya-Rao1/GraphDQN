@@ -1,31 +1,17 @@
-"""Remote-GPU-box verification for the adapter_names/train-eval mode fix in
-ppo/gnn_llm_actor_critic.py::_GNNLLMBackbone._fused_features and
-ppo/llm_finetune.py::run_llm_finetune_cycle.
-
-peft does not import in the local dev environment (broken scipy/numpy ABI
-chain, same as noted in CLAUDE.md), so this cannot be run locally -- run it
-on the remote GPU box before trusting the fix under real concurrency.
-
-Checks:
-  (a) In .eval() mode, adapter_names=["actor"]*N vs ["critic"]*N on
-      identical input produce DIFFERENT outputs (proves per-call adapter
-      identity is actually respected, the original race-condition fix).
-  (b) Calling .train() + set_adapter("actor") + a plain forward (no
-      adapter_names) succeeds with no ValueError, and its output matches a
-      second forward call made the same way (deterministic given the same
-      adapter and eval-equivalent dropout seed is not required here --
-      only that it does not raise).
-  (c) Simulating the full guarded sequence run_llm_finetune_cycle uses
-      (train() -> set_adapter -> forward/backward -> eval()) leaves the
-      model correctly back in .eval() mode, and that adapter_names=
-      dispatch works correctly again immediately after -- proving the
-      invariant is actually restored, not just correct at the start.
-"""
 import torch
 
 from ppo.gnn_llm_actor_critic import build_shared_llm_backbone, default_qwen2_lora_config
 
 TEST_MODEL_NAME = "Qwen/Qwen2.5-0.5B-Instruct"
+
+
+def _perturb_lora_b(peft_model, adapter_name: str, seed: int) -> None:
+    gen = torch.Generator(device="cpu").manual_seed(seed)
+    with torch.no_grad():
+        for name, p in peft_model.named_parameters():
+            if f".{adapter_name}." in name and "lora_B" in name:
+                noise = torch.randn(p.shape, generator=gen).to(p.device, p.dtype) * 0.05
+                p.add_(noise)
 
 
 def main():
@@ -39,9 +25,6 @@ def main():
     )
     peft_model.to(device)
 
-    # _GNNLLMBackbone.__init__ calls self.llm.eval() right after construction
-    # -- build_shared_llm_backbone itself doesn't, so replicate that here to
-    # match what PGMORLAgent/GNNLLMActor actually does before any forward pass.
     peft_model.eval()
     assert not peft_model.training, "expected eval mode after construction"
     print("[PASS] backbone starts in eval mode")
@@ -49,7 +32,9 @@ def main():
     text = ["Molecule CCO against target sequence MKV; prioritizing binding affinity."]
     encoded = tokenizer(text, return_tensors="pt", padding=True, truncation=True).to(device)
 
-    # (a) adapter_names= dispatch differs by adapter, in eval mode
+    _perturb_lora_b(peft_model, "actor", seed=1)
+    _perturb_lora_b(peft_model, "critic", seed=2)
+
     with torch.no_grad():
         out_actor = peft_model(**encoded, adapter_names=["actor"], output_hidden_states=True)
         out_critic = peft_model(**encoded, adapter_names=["critic"], output_hidden_states=True)
@@ -59,7 +44,6 @@ def main():
         "actor vs critic adapter_names= dispatch produced identical output -- adapter identity not respected"
     print("[PASS] adapter_names= in eval mode dispatches to distinct adapters")
 
-    # (b) train() + set_adapter() + plain forward succeeds (no ValueError)
     peft_model.train()
     peft_model.set_adapter("actor")
     target_params = [p for n, p in peft_model.named_parameters() if ".actor." in n]
@@ -77,7 +61,6 @@ def main():
     for p in target_params:
         p.requires_grad = False
 
-    # (c) restore eval() -- mirrors run_llm_finetune_cycle's own bracketing
     peft_model.eval()
     assert not peft_model.training, "expected eval mode restored after the guarded block"
     with torch.no_grad():
