@@ -151,8 +151,8 @@ class _GNNLLMBackbone(nn.Module):
                 list(descriptor_texts), return_tensors="pt", padding=True, truncation=True,
             ).to(device)
             llm_kwargs = dict(encoded)
-            if hasattr(self.llm, "set_adapter"):
-                llm_kwargs["adapter_names"] = [self._adapter_name] * encoded["input_ids"].shape[0]
+            # if hasattr(self.llm, "set_adapter"):
+            #     llm_kwargs["adapter_names"] = [self._adapter_name] * encoded["input_ids"].shape[0]
             llm_out = self.llm(**llm_kwargs, output_hidden_states=True)
             hidden_states = getattr(llm_out, "last_hidden_state", None)
             if hidden_states is None:

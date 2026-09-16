@@ -61,8 +61,10 @@ class OptimizationConfig(Base):
     synthetic_weight = Column(Float, nullable=False, default=0.2)
     selectivity_weight = Column(Float, nullable=False, default=0.3)
 
-    admet_properties = Column(JSON, nullable=False)  # list[str]
-    admet_directions = Column(JSON, nullable=False)  # dict[str, int] (1 or -1)
+    admet_properties = Column(JSON, nullable=False)  
+    admet_directions = Column(JSON, nullable=False) 
+
+    generated_by_pareto_sweep_id = Column(Integer, ForeignKey("pareto_sweep_runs.id"), nullable=True)
 
     created_at = Column(DateTime, server_default=func.now())
 
@@ -171,8 +173,8 @@ class EditOutcomeLog(Base):
 
     step_index = Column(Integer, nullable=False)
     parent_smiles = Column(String, nullable=False)
-    applied_edit_ids = Column(JSON, nullable=False)  # list[str], possibly empty (zero-edit fallback step)
-    pre_edit_states = Column(JSON, nullable=False)  # list[str]
+    applied_edit_ids = Column(JSON, nullable=False)  
+    pre_edit_states = Column(JSON, nullable=False) 
     k_edits_used = Column(Integer, nullable=False)
     edit_count_mode = Column(String, nullable=False)  # "fixed" | "random" | "learned"
     resulting_smiles = Column(String, nullable=False)
@@ -185,5 +187,76 @@ class EditOutcomeLog(Base):
     reward_vector = Column(JSON, nullable=False)  # [admet, binding, sa, selectivity]
 
     consumed_by_finetune = Column(Boolean, nullable=False, default=False)
+
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class ParetoSweepRun(Base):
+    __tablename__ = "pareto_sweep_runs"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    base_config_id = Column(Integer, ForeignKey("optimization_configs.id"), nullable=False)
+
+    seed = Column(Integer, nullable=False, default=0)
+    population_size = Column(Integer, nullable=False)
+    concentration_alpha = Column(Float, nullable=False)
+    num_rounds = Column(Integer, nullable=False)
+    episodes_per_round = Column(Integer, nullable=False)
+    eval_episodes_per_round = Column(Integer, nullable=False)
+    max_steps = Column(Integer, nullable=False)
+
+    edit_count_mode = Column(String, nullable=False, default="fixed")  # "fixed" | "random" | "learned"
+    fixed_edit_count = Column(Integer, nullable=True)
+    edit_count_range_min = Column(Integer, nullable=True)
+    edit_count_range_max = Column(Integer, nullable=True)
+    k_max = Column(Integer, nullable=True)
+
+    use_llm = Column(Boolean, nullable=False, default=False)
+    llm_model_name = Column(String, nullable=True)
+    use_predictor = Column(Boolean, nullable=False, default=True)  # False = round-robin baseline
+    concurrent = Column(Boolean, nullable=False, default=False)
+    max_concurrent_members = Column(Integer, nullable=True)
+
+    status = Column(String, nullable=False, default="pending")  # pending|running|completed|failed|cancelled
+    progress_current_round = Column(Integer, nullable=False, default=0)
+    progress_total_rounds = Column(Integer, nullable=False, default=0)
+    members_snapshot_json = Column(JSON, nullable=True)
+
+    result_summary_json = Column(JSON, nullable=True)
+    error_message = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, server_default=func.now())
+    started_at = Column(DateTime, nullable=True)
+    finished_at = Column(DateTime, nullable=True)
+
+    base_config = relationship("OptimizationConfig", foreign_keys=[base_config_id])
+
+
+class PGMORLPerformanceRecord(Base):
+    __tablename__ = "pgmorl_performance_records"
+
+    id = Column(Integer, primary_key=True)
+    pareto_sweep_id = Column(Integer, ForeignKey("pareto_sweep_runs.id"), nullable=False, index=True)
+    population_member_config_id = Column(Integer, ForeignKey("optimization_configs.id"), nullable=False)
+
+    objective_vector_before = Column(JSON, nullable=False)  # [admet, binding, sa, selectivity]
+    weight_vector_used = Column(JSON, nullable=False)
+    training_steps_this_round = Column(Integer, nullable=False)
+    objective_vector_after = Column(JSON, nullable=False)
+
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class LLMAdapterCheckpoint(Base):
+    __tablename__ = "llm_adapter_checkpoints"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+
+    base_model_name = Column(String, nullable=False)
+    adapter_path = Column(String, nullable=False)
+    trained_on_pareto_sweep_ids = Column(JSON, nullable=False)  
+    num_training_examples = Column(Integer, nullable=False)
 
     created_at = Column(DateTime, server_default=func.now())

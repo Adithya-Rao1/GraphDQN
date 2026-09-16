@@ -2,7 +2,7 @@ import dataclasses
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import nullcontext
-from typing import Callable, List, Sequence
+from typing import Callable, List, Optional, Sequence
 
 import numpy as np
 import torch
@@ -28,13 +28,15 @@ def train_member_one_round_guarded(
     member: PopulationMember, env_factory: Callable[[], object],
     episodes_per_round: int, max_steps: int, ppo_epochs: int,
     rw_lock=None, use_cuda_stream: bool = True,
+    cancel_event: Optional[threading.Event] = None,
 ) -> None:
     read_ctx = rw_lock.gen_rlock() if rw_lock is not None else nullcontext()
     stream = torch.cuda.Stream() if (use_cuda_stream and torch.cuda.is_available()) else None
     stream_ctx = torch.cuda.stream(stream) if stream is not None else nullcontext()
 
     with read_ctx, stream_ctx:
-        train_member_one_round(member, env_factory, episodes_per_round, max_steps, ppo_epochs)
+        train_member_one_round(member, env_factory, episodes_per_round, max_steps, ppo_epochs,
+                                cancel_event=cancel_event)
         if stream is not None:
             stream.synchronize()
 
@@ -57,7 +59,8 @@ def run_pareto_sweep_concurrent(
     rw_lock=None,
     use_cuda_streams: bool = True,
     use_predictor: bool = True,
-    on_round_complete: Callable[[int, List[PerformanceRecord]], None] = None,
+    cancel_event: Optional[threading.Event] = None,
+    on_round_complete: Callable[[int, List[PopulationMember], List[PerformanceRecord]], None] = None,
 ) -> ParetoSweepResult:
     rng = np.random.default_rng(seed)
     center = [
@@ -89,7 +92,7 @@ def run_pareto_sweep_concurrent(
 
         train_member_one_round_guarded(
             member, env_factory, episodes_per_round, max_steps, ppo_epochs,
-            rw_lock=rw_lock, use_cuda_stream=use_cuda_streams,
+            rw_lock=rw_lock, use_cuda_stream=use_cuda_streams, cancel_event=cancel_event,
         )
 
         objective_after = measure_objective_vector(
@@ -134,6 +137,6 @@ def run_pareto_sweep_concurrent(
 
         if on_round_complete is not None:
             with records_lock:
-                on_round_complete(round_idx, list(records))
+                on_round_complete(round_idx, list(members), list(records))
 
     return ParetoSweepResult(members=members, records=records, predictor=predictor)

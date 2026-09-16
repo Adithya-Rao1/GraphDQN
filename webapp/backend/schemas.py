@@ -275,3 +275,88 @@ class FineTuneRequest(BaseModel):
     candidate_ids: List[int] = Field(min_length=1)
     alpha: float = Field(default=0.3, ge=0, le=1)
     num_extra_episodes: int = Field(default=50, ge=1)
+
+
+class ParetoSweepCreate(BaseModel):
+    base_config_id: int
+    seed: int = 0
+    population_size: int = Field(default=6, ge=2, le=32)
+    concentration_alpha: float = Field(default=20.0, gt=0)
+    num_rounds: int = Field(default=5, ge=1)
+    episodes_per_round: int = Field(default=10, ge=1)
+    eval_episodes_per_round: int = Field(default=3, ge=1)
+    max_steps: int = Field(default=40, ge=1)
+
+    edit_count_mode: str = "fixed"  # "fixed" | "random" | "learned"
+    fixed_edit_count: int = 1
+    edit_count_range_min: Optional[int] = None
+    edit_count_range_max: Optional[int] = None
+    k_max: Optional[int] = None
+
+    use_llm: bool = False
+    llm_model_name: Optional[str] = None
+    use_predictor: bool = True
+    concurrent: bool = False
+    max_concurrent_members: Optional[int] = Field(default=None, ge=1)
+
+    @field_validator("edit_count_mode")
+    @classmethod
+    def _validate_edit_count_mode(cls, v):
+        if v not in ("fixed", "random", "learned"):
+            raise ValueError("edit_count_mode must be 'fixed', 'random', or 'learned'")
+        return v
+
+    def edit_count_config_valid(self) -> Optional[str]:
+        """Returns an error message if the mode-specific fields are
+        inconsistent with edit_count_mode, else None."""
+        if self.edit_count_mode == "random":
+            if self.edit_count_range_min is None or self.edit_count_range_max is None:
+                return "edit_count_range_min/max are required when edit_count_mode is 'random'"
+            if self.edit_count_range_min > self.edit_count_range_max:
+                return "edit_count_range_min must be <= edit_count_range_max"
+        if self.edit_count_mode == "learned" and not self.k_max:
+            return "k_max is required when edit_count_mode is 'learned'"
+        return None
+
+
+class PopulationMemberOut(BaseModel):
+    member_id: str
+    config_id: Optional[int] = None
+    weight_vector: List[float]
+    objective_vector: List[float]
+    total_training_steps: int
+    checkpoint_path: Optional[str] = None
+    non_dominated: Optional[bool] = None
+
+
+class ParetoSweepOut(BaseModel):
+    id: int
+    base_config_id: int
+    seed: int
+    population_size: int
+    concentration_alpha: float
+    num_rounds: int
+    episodes_per_round: int
+    eval_episodes_per_round: int
+    max_steps: int
+    edit_count_mode: str
+    fixed_edit_count: Optional[int] = None
+    edit_count_range_min: Optional[int] = None
+    edit_count_range_max: Optional[int] = None
+    k_max: Optional[int] = None
+    use_llm: bool
+    llm_model_name: Optional[str] = None
+    use_predictor: bool
+    concurrent: bool
+    max_concurrent_members: Optional[int] = None
+    status: str
+    progress_current_round: int
+    progress_total_rounds: int
+    members_snapshot_json: Optional[List[dict]] = None
+    result_summary_json: Optional[dict] = None
+    error_message: Optional[str] = None
+    created_at: datetime
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}

@@ -128,6 +128,18 @@ class ApiClient:
         return self._request("POST", f"/api/candidates/{candidate_id}/score",
                               json={"rating": rating, "notes": notes})
 
+    def start_pareto_sweep(self, payload: dict) -> dict:
+        return self._request("POST", "/api/pareto-sweeps", json=payload)
+
+    def list_pareto_sweeps(self) -> list:
+        return self._request("GET", "/api/pareto-sweeps")
+
+    def get_pareto_sweep(self, sweep_id: int) -> dict:
+        return self._request("GET", f"/api/pareto-sweeps/{sweep_id}")
+
+    def cancel_pareto_sweep(self, sweep_id: int, discard: bool = False) -> dict:
+        return self._request("POST", f"/api/pareto-sweeps/{sweep_id}/cancel", params={"discard": discard})
+
 
 @st.cache_resource
 def get_client() -> ApiClient:

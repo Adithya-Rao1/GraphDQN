@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from webapp.backend.config import CORS_ORIGINS
 from webapp.backend.db import Base, engine
 from webapp.backend import models  # noqa: F401 -- registers ORM models on Base.metadata
-from webapp.backend.routers import auth, candidates, configs, generation, meta, molecules, proteins, runs
+from webapp.backend.routers import auth, candidates, configs, generation, meta, molecules, pareto_sweep, proteins, runs
 
 app = FastAPI(title="GraphDQN Molecular Optimization API")
 
@@ -30,6 +30,7 @@ app.include_router(configs.router)
 app.include_router(runs.router)
 app.include_router(generation.router)
 app.include_router(candidates.router)
+app.include_router(pareto_sweep.router)
 
 
 @app.get("/api/health")

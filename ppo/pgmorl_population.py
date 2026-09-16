@@ -1,8 +1,13 @@
 import dataclasses
+import threading
 from dataclasses import dataclass, field
 from typing import Callable, List, Optional, Sequence
 
 import numpy as np
+
+
+class SweepCancelled(Exception):
+    pass
 
 from ppo.pgmorl_agent import PGMORLAgent
 from ppo.pgmorl_predictor import (
@@ -60,8 +65,11 @@ def measure_objective_vector(agent: PGMORLAgent, env_factory: Callable[[], objec
 
 
 def train_member_one_round(member: PopulationMember, env_factory: Callable[[], object],
-                             episodes_per_round: int, max_steps: int, ppo_epochs: int) -> None:
+                             episodes_per_round: int, max_steps: int, ppo_epochs: int,
+                             cancel_event: Optional[threading.Event] = None) -> None:
     for _ in range(episodes_per_round):
+        if cancel_event is not None and cancel_event.is_set():
+            raise SweepCancelled(f"Sweep cancelled mid-round for {member.member_id}")
         env = env_factory()
         for _ in range(max_steps):
             entry = member.agent.act(env)
@@ -86,6 +94,8 @@ def run_pareto_sweep_sequential(
     reference_point: Sequence[float] = DEFAULT_REFERENCE_POINT,
     seed: int = 0,
     use_predictor: bool = True,
+    cancel_event: Optional[threading.Event] = None,
+    on_round_complete: Callable[[int, List[PopulationMember], List[PerformanceRecord]], None] = None,
 ) -> ParetoSweepResult:
     rng = np.random.default_rng(seed)
     center = [
@@ -111,7 +121,7 @@ def run_pareto_sweep_sequential(
             member.agent, env_factory, eval_episodes_per_round, max_steps,
         )
 
-    for _round_idx in range(num_rounds):
+    for round_idx in range(num_rounds):
         current_front = np.array([m.objective_vector for m in members])
 
         if not use_predictor:
@@ -131,7 +141,8 @@ def run_pareto_sweep_sequential(
             member = members[int(idx)]
             objective_before = list(member.objective_vector)
 
-            train_member_one_round(member, env_factory, episodes_per_round, max_steps, ppo_epochs)
+            train_member_one_round(member, env_factory, episodes_per_round, max_steps, ppo_epochs,
+                                    cancel_event=cancel_event)
 
             objective_after = measure_objective_vector(
                 member.agent, env_factory, eval_episodes_per_round, max_steps,
@@ -148,5 +159,8 @@ def run_pareto_sweep_sequential(
 
         if use_predictor:
             predictor.fit(records)
+
+        if on_round_complete is not None:
+            on_round_complete(round_idx, list(members), list(records))
 
     return ParetoSweepResult(members=members, records=records, predictor=predictor)
