@@ -14,14 +14,21 @@ from webapp.backend.schemas import (
     MoleculePreviewRequest,
 )
 from webapp.backend.mol_render import mol_image_base64
+from molecular_modifications.chemistry_constants import SUPPORTED_ELEMENTS, find_unsupported_elements
 
 router = APIRouter(prefix="/api/molecules", tags=["molecules"])
+
+_SUPPORTED_ELEMENTS_LIST = ", ".join(sorted(SUPPORTED_ELEMENTS))
 
 
 def _canonicalize(smiles: str) -> str:
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         raise ValueError(f"Invalid SMILES: {smiles!r}")
+
+    unsupported = find_unsupported_elements(mol)
+    if unsupported:
+        raise ValueError(f"Element(s) not yet supported for molecule editing: {', '.join(unsupported)}. Supported elements: {_SUPPORTED_ELEMENTS_LIST}. Please try a different molecule.")
     return Chem.MolToSmiles(mol)
 
 

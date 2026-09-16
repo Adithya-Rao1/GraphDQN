@@ -35,7 +35,7 @@ with st.expander("Add a new molecule"):
                 api.create_molecule(new_smiles)
                 st.rerun()
         else:
-            st.error(f"Invalid SMILES: {preview.get('error')}")
+            st.error(preview.get("error"))
 
 if not molecules:
     st.info("Add a starting molecule above to continue.")

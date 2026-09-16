@@ -10,7 +10,9 @@ ELECTRONEGATIVITY = {
     'Br': 2.96,
     'I': 2.66,
     'B': 2.04,
-    'Si': 1.90
+    'Si': 1.90,
+    'As': 2.18,
+    'Se': 2.55,
 }
 
 ATOMIC_NUMBERS = {
@@ -25,13 +27,15 @@ ATOMIC_NUMBERS = {
     'Br': 35,
     'I': 53,
     'B': 5,
-    'Si': 14
+    'Si': 14,
+    'As': 33,
+    'Se': 34,
 }
 
 VALENCE_ELECTRON_COUNTS = {
     "H": 1,
     "C": 4,
-    "N": 5,     
+    "N": 5,
     "O": 6,
     "S": 6,
     "P": 5,
@@ -40,7 +44,9 @@ VALENCE_ELECTRON_COUNTS = {
     'Br': 7,
     'I': 7,
     'B': 3,
-    'Si': 4
+    'Si': 4,
+    'As': 5,
+    'Se': 6,
 }
 
 MAX_FORMAL_CHARGE = {
@@ -55,7 +61,9 @@ MAX_FORMAL_CHARGE = {
     'Br': 1,
     'I': 1,
     'B': 2,
-    'Si': 2
+    'Si': 2,
+    'As': 3,
+    'Se': 2,
 }
 
 VAN_DER_WAALS_RADII = {
@@ -70,7 +78,9 @@ VAN_DER_WAALS_RADII = {
     'Br': 1.85,
     'I': 2.20,
     'B': 1.85,
-    'Si': 2.10
+    'Si': 2.10,
+    'As': 1.85,
+    'Se': 1.90,
 }
 
 COVALENT_RADII = {
@@ -81,9 +91,19 @@ COVALENT_RADII = {
     'S': 1.02,
     'P': 1.07,
     'F': 0.64,
-    'Cl': 1.00, 
+    'Cl': 1.00,
     'Br': 1.17,
     'I': 1.39,
     'B': 0.85,
-    'Si': 1.11
+    'Si': 1.11,
+    'As': 1.19,
+    'Se': 1.16,
 }
+
+
+SUPPORTED_ELEMENTS = frozenset(VALENCE_ELECTRON_COUNTS.keys())
+
+
+def find_unsupported_elements(mol) -> list:
+    unsupported = {atom.GetSymbol() for atom in mol.GetAtoms() if atom.GetSymbol() not in SUPPORTED_ELEMENTS}
+    return sorted(unsupported)

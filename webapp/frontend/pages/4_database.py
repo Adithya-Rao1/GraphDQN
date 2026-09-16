@@ -27,7 +27,7 @@ with tab_mol:
         try:
             preview = api.preview_molecule(smiles)
             if not preview["valid"]:
-                st.error(f"Invalid SMILES: {preview.get('error')}")
+                st.error(preview.get("error"))
             else:
                 api.create_molecule(smiles, label or None)
                 st.success("Molecule added")

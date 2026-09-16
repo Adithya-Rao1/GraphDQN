@@ -219,6 +219,8 @@ class ModifyAtom:
         atom = rwmol.GetAtomWithIdx(atom_idx)
 
         max_valence = VALENCE_ELECTRON_COUNTS.get(atom.GetSymbol())
+        if max_valence is None:
+            return False
         current_valence = atom.GetTotalValence()
 
         if current_valence > max_valence:
