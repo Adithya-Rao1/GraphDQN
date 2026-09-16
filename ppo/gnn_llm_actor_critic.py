@@ -126,6 +126,7 @@ class _GNNLLMBackbone(nn.Module):
                     get_peft_model(base_llm, lora_config, adapter_name=self._adapter_name)
                     if lora_config is not None else base_llm
                 )
+            self.llm.eval()
             llm_dim = self.llm.config.hidden_size
             self.fusion = CrossAttentionFusion(graph_dim, llm_dim)
             self.head_dim = llm_dim
@@ -151,8 +152,8 @@ class _GNNLLMBackbone(nn.Module):
                 list(descriptor_texts), return_tensors="pt", padding=True, truncation=True,
             ).to(device)
             llm_kwargs = dict(encoded)
-            # if hasattr(self.llm, "set_adapter"):
-            #     llm_kwargs["adapter_names"] = [self._adapter_name] * encoded["input_ids"].shape[0]
+            if not self.llm.training and hasattr(self.llm, "set_adapter"):
+                llm_kwargs["adapter_names"] = [self._adapter_name] * encoded["input_ids"].shape[0]
             llm_out = self.llm(**llm_kwargs, output_hidden_states=True)
             hidden_states = getattr(llm_out, "last_hidden_state", None)
             if hidden_states is None:
@@ -213,8 +214,12 @@ class GNNLLMCritic(_GNNLLMBackbone):
         return self.value_head(features)  
 
 
-def sample_edit(edit_logits: torch.Tensor):
-    dist = Categorical(logits=edit_logits)
+def sample_edit(edit_logits: torch.Tensor, temperature: float = 1.0, greedy: bool = False):
+    if greedy:
+        idx = torch.argmax(edit_logits, dim=-1)
+        dist = Categorical(logits=edit_logits)
+        return idx, dist.log_prob(idx), dist.entropy()
+    dist = Categorical(logits=edit_logits / temperature)
     idx = dist.sample()
     return idx, dist.log_prob(idx), dist.entropy()
 

@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 from webapp.backend.db import get_db
 from webapp.backend.deps import get_current_user
 from webapp.backend.jobs.manager import job_manager
-from webapp.backend.models import OptimizationConfig, ParetoSweepRun, User
-from webapp.backend.schemas import ParetoSweepCreate, ParetoSweepOut
+from webapp.backend.models import LLMAdapterCheckpoint, OptimizationConfig, ParetoSweepRun, User
+from webapp.backend.schemas import LLMAdapterCheckpointOut, ParetoSweepCreate, ParetoSweepOut
 
 router = APIRouter(prefix="/api/pareto-sweeps", tags=["pareto-sweeps"])
 
@@ -53,6 +53,7 @@ def start_pareto_sweep(payload: ParetoSweepCreate, db: Session = Depends(get_db)
         use_predictor=payload.use_predictor,
         concurrent=payload.concurrent,
         max_concurrent_members=payload.max_concurrent_members,
+        llm_finetune_interval_steps=payload.llm_finetune_interval_steps,
         status="pending",
         progress_total_rounds=payload.num_rounds,
     )
@@ -86,3 +87,19 @@ def cancel_pareto_sweep(sweep_id: int, discard: bool = False, db: Session = Depe
     sweep = _owned_sweep_or_404(db, sweep_id, current_user.id)
     job_manager.cancel_pareto_sweep(sweep_id, discard=discard)
     return sweep
+
+
+@router.get("/{sweep_id}/adapter-checkpoints", response_model=List[LLMAdapterCheckpointOut])
+def list_adapter_checkpoints(sweep_id: int, db: Session = Depends(get_db),
+                              current_user: User = Depends(get_current_user)):
+    _owned_sweep_or_404(db, sweep_id, current_user.id)
+    checkpoints = (
+        db.query(LLMAdapterCheckpoint)
+        .filter(LLMAdapterCheckpoint.user_id == current_user.id)
+        .order_by(LLMAdapterCheckpoint.created_at.desc())
+        .all()
+    )
+    return [
+        c for c in checkpoints
+        if sweep_id in (c.trained_on_pareto_sweep_ids or [])
+    ]

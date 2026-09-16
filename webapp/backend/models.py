@@ -110,7 +110,9 @@ class GenerationBatch(Base):
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    training_run_id = Column(Integer, ForeignKey("training_runs.id"), nullable=False)
+    training_run_id = Column(Integer, ForeignKey("training_runs.id"), nullable=True)
+    pareto_sweep_id = Column(Integer, ForeignKey("pareto_sweep_runs.id"), nullable=True)
+    population_member_config_id = Column(Integer, ForeignKey("optimization_configs.id"), nullable=True)
 
     checkpoint_path_snapshot = Column(String, nullable=False)
     num_requested = Column(Integer, nullable=False)
@@ -131,7 +133,7 @@ class GeneratedCandidate(Base):
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     generation_batch_id = Column(Integer, ForeignKey("generation_batches.id"), nullable=False, index=True)
-    training_run_id = Column(Integer, ForeignKey("training_runs.id"), nullable=False, index=True)
+    training_run_id = Column(Integer, ForeignKey("training_runs.id"), nullable=True, index=True)
 
     smiles = Column(String, nullable=False)
     reward = Column(Float, nullable=False)
@@ -169,7 +171,9 @@ class EditOutcomeLog(Base):
 
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    training_run_id = Column(Integer, ForeignKey("training_runs.id"), nullable=False, index=True)
+    training_run_id = Column(Integer, ForeignKey("training_runs.id"), nullable=True, index=True)
+    pareto_sweep_id = Column(Integer, ForeignKey("pareto_sweep_runs.id"), nullable=True, index=True)
+    population_member_config_id = Column(Integer, ForeignKey("optimization_configs.id"), nullable=True)
 
     step_index = Column(Integer, nullable=False)
     parent_smiles = Column(String, nullable=False)
@@ -217,6 +221,8 @@ class ParetoSweepRun(Base):
     use_predictor = Column(Boolean, nullable=False, default=True)  # False = round-robin baseline
     concurrent = Column(Boolean, nullable=False, default=False)
     max_concurrent_members = Column(Integer, nullable=True)
+    llm_finetune_interval_steps = Column(Integer, nullable=True)
+    cumulative_steps_since_finetune = Column(Integer, nullable=False, default=0)
 
     status = Column(String, nullable=False, default="pending")  # pending|running|completed|failed|cancelled
     progress_current_round = Column(Integer, nullable=False, default=0)

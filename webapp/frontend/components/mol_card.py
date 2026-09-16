@@ -19,6 +19,11 @@ def render_candidate_card(candidate: dict, api, allow_scoring: bool = True, allo
         if candidate.get("user_rating") is not None else ""
     )
 
+    provenance = (
+        f"run #{candidate['training_run_id']}" if candidate.get("training_run_id") is not None
+        else f"config #{candidate.get('config_id', '?')}"
+    )
+
     protein_line = candidate.get("target_protein_name", "")
     if candidate.get("off_target_protein_name"):
         protein_line += f" (vs. off-target {candidate['off_target_protein_name']})"
@@ -36,7 +41,7 @@ def render_candidate_card(candidate: dict, api, allow_scoring: bool = True, allo
           <div class="gdqn-smiles">{candidate['smiles']}</div>
           <div class="gdqn-meta">
             From {candidate.get('starting_smiles', '?')} &middot; target: {protein_line}<br>
-            Config: {candidate.get('config_name', '?')} &middot; run #{candidate.get('training_run_id', '?')}
+            Config: {candidate.get('config_name', '?')} &middot; {provenance}
           </div>
           {finetune_line}
           <table class="gdqn-metrics">

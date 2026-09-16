@@ -213,8 +213,14 @@ with tab_sweep:
              "every edit decision. Meaningfully more GPU memory and wall-clock per episode.",
     )
     sweep_llm_model_name = None
+    llm_finetune_interval_steps = None
     if use_sweep_llm:
         sweep_llm_model_name = st.text_input("LLM model name", value="Qwen/Qwen2.5-3B-Instruct")
+        llm_finetune_interval_steps = st.number_input(
+            "Fine-tune the shared LLM adapter every N cumulative macro-steps", min_value=1, value=200,
+            help="Periodically fine-tunes the shared LoRA adapter on cached per-step outcomes pooled across "
+                 "the whole population, then resets the cache. Lower = adapts faster but more overhead.",
+        )
 
     col1, col2 = st.columns(2)
     with col1:
@@ -263,6 +269,9 @@ with tab_sweep:
                 "k_max": int(k_max) if k_max is not None else None,
                 "use_llm": use_sweep_llm,
                 "llm_model_name": sweep_llm_model_name,
+                "llm_finetune_interval_steps": (
+                    int(llm_finetune_interval_steps) if llm_finetune_interval_steps is not None else None
+                ),
                 "use_predictor": use_predictor,
                 "concurrent": concurrent,
                 "max_concurrent_members": int(max_concurrent_members) if max_concurrent_members else None,

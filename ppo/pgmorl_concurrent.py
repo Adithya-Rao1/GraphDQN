@@ -29,6 +29,7 @@ def train_member_one_round_guarded(
     episodes_per_round: int, max_steps: int, ppo_epochs: int,
     rw_lock=None, use_cuda_stream: bool = True,
     cancel_event: Optional[threading.Event] = None,
+    on_step_scored: Optional[Callable[[str, object], None]] = None,
 ) -> None:
     read_ctx = rw_lock.gen_rlock() if rw_lock is not None else nullcontext()
     stream = torch.cuda.Stream() if (use_cuda_stream and torch.cuda.is_available()) else None
@@ -36,7 +37,7 @@ def train_member_one_round_guarded(
 
     with read_ctx, stream_ctx:
         train_member_one_round(member, env_factory, episodes_per_round, max_steps, ppo_epochs,
-                                cancel_event=cancel_event)
+                                cancel_event=cancel_event, on_step_scored=on_step_scored)
         if stream is not None:
             stream.synchronize()
 
@@ -61,6 +62,7 @@ def run_pareto_sweep_concurrent(
     use_predictor: bool = True,
     cancel_event: Optional[threading.Event] = None,
     on_round_complete: Callable[[int, List[PopulationMember], List[PerformanceRecord]], None] = None,
+    on_step_scored: Optional[Callable[[str, object], None]] = None,
 ) -> ParetoSweepResult:
     rng = np.random.default_rng(seed)
     center = [
@@ -93,6 +95,7 @@ def run_pareto_sweep_concurrent(
         train_member_one_round_guarded(
             member, env_factory, episodes_per_round, max_steps, ppo_epochs,
             rw_lock=rw_lock, use_cuda_stream=use_cuda_streams, cancel_event=cancel_event,
+            on_step_scored=on_step_scored,
         )
 
         objective_after = measure_objective_vector(

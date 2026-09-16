@@ -66,6 +66,7 @@ def run_llm_finetune_cycle(
 
     with write_ctx:
         peft_model = actor.llm
+        peft_model.train()
         peft_model.set_adapter(adapter_name)
 
         target_params = [p for n, p in peft_model.named_parameters() if f".{adapter_name}." in n]
@@ -132,6 +133,7 @@ def run_llm_finetune_cycle(
 
         for p in target_params:
             p.requires_grad = False
+        peft_model.eval()
 
     return FineTuneCycleResult(
         num_examples=len(outcomes),

@@ -1,7 +1,8 @@
 import os
 import threading
 import time
-from typing import Callable, List, Optional
+from contextlib import nullcontext
+from typing import Callable, List, Optional, Tuple
 
 import torch
 
@@ -10,6 +11,7 @@ from binding_module.binding_affinity.plapt import Plapt
 from dqn.dqn_env import MoleculeEnv
 from molecular_modifications.macro_actions import build_edit_catalog
 from ppo.gnn_llm_actor_critic import build_shared_llm_backbone, default_qwen2_lora_config
+from ppo.llm_finetune import EditOutcome, FineTuneCycleResult, run_llm_finetune_cycle
 from ppo.pgmorl_agent import PGMORLAgent
 from ppo.pgmorl_concurrent import run_pareto_sweep_concurrent
 from ppo.pgmorl_population import run_pareto_sweep_sequential
@@ -42,8 +44,11 @@ def run_pareto_sweep(
     run_id: str,
     checkpoint_root: str,
     on_member_created: Callable[[int, List[float]], None],
-    progress_cb: Optional[Callable[[int, int, list], None]] = None,
+    progress_cb: Optional[Callable[[int, int, list, list, int], Optional[List[Tuple[int, EditOutcome]]]]] = None,
     cancel_event: Optional[threading.Event] = None,
+    on_step_scored: Optional[Callable[[str, object], None]] = None,
+    on_finetune_result: Optional[Callable[[FineTuneCycleResult, List[int], str], None]] = None,
+    adapter_checkpoint_root: Optional[str] = None,
 ) -> dict:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.manual_seed(seed)
@@ -55,11 +60,17 @@ def run_pareto_sweep(
     sa_model = SyntheticAccessibility()
 
     shared_llm_backbone = None
+    rw_lock = None
     if use_llm:
         shared_llm_backbone = build_shared_llm_backbone(
             llm_model_name, {"actor": default_qwen2_lora_config(), "critic": default_qwen2_lora_config()},
             torch_dtype=torch.bfloat16,
         )
+        from readerwriterlock import rwlock
+        rw_lock = rwlock.RWLockFair()
+
+    def finetune_descriptor_fn(smiles: str) -> str:
+        return f"Molecule {smiles} against target sequence (pooled fine-tune batch across population)."
 
     def env_factory():
         env = MoleculeEnv(init_mol=init_mol, max_steps=max_steps)
@@ -90,29 +101,52 @@ def run_pareto_sweep(
     records_seen = {"n": 0}
 
     def on_round_complete(round_idx, members, records):
-        if progress_cb is not None:
-            snapshot = [
-                {
-                    "member_id": m.member_id,
-                    "weight_vector": m.weight_vector,
-                    "objective_vector": m.objective_vector,
-                    "total_training_steps": m.total_training_steps,
-                }
-                for m in members
-            ]
-            new_records = records[records_seen["n"]:]
-            records_seen["n"] = len(records)
-            new_records_out = [
-                {
-                    "member_id": r.member_id,
-                    "objective_vector_before": r.objective_vector_before,
-                    "weight_vector_used": r.weight_vector_used,
-                    "training_steps_this_round": r.training_steps_this_round,
-                    "objective_vector_after": r.objective_vector_after,
-                }
-                for r in new_records
-            ]
-            progress_cb(round_idx + 1, num_rounds, snapshot, new_records_out)
+        if progress_cb is None:
+            return
+        snapshot = [
+            {
+                "member_id": m.member_id,
+                "weight_vector": m.weight_vector,
+                "objective_vector": m.objective_vector,
+                "total_training_steps": m.total_training_steps,
+            }
+            for m in members
+        ]
+        new_records = records[records_seen["n"]:]
+        records_seen["n"] = len(records)
+        new_records_out = [
+            {
+                "member_id": r.member_id,
+                "objective_vector_before": r.objective_vector_before,
+                "weight_vector_used": r.weight_vector_used,
+                "training_steps_this_round": r.training_steps_this_round,
+                "objective_vector_after": r.objective_vector_after,
+            }
+            for r in new_records
+        ]
+        round_steps = sum(r["training_steps_this_round"] for r in new_records_out)
+        finetune_batch = progress_cb(round_idx + 1, num_rounds, snapshot, new_records_out, round_steps)
+
+        if finetune_batch and use_llm and shared_llm_backbone is not None:
+            representative_actor = members[0].agent.actor
+            row_ids = [row_id for row_id, _ in finetune_batch]
+            outcomes = [outcome for _, outcome in finetune_batch]
+            result = run_llm_finetune_cycle(
+                actor=representative_actor, adapter_name="actor", outcomes=outcomes,
+                descriptor_fn=finetune_descriptor_fn, device=device, rw_lock=rw_lock,
+            )
+
+            adapter_path = None
+            if adapter_checkpoint_root is not None:
+                adapter_dir = os.path.join(adapter_checkpoint_root, f"{run_id}_round{round_idx}_{int(time.time())}")
+                os.makedirs(adapter_dir, exist_ok=True)
+                write_ctx = rw_lock.gen_wlock() if rw_lock is not None else nullcontext()
+                with write_ctx:
+                    representative_actor.llm.save_pretrained(adapter_dir, selected_adapters=["actor"])
+                adapter_path = adapter_dir
+
+            if on_finetune_result is not None:
+                on_finetune_result(result, row_ids, adapter_path)
 
     start_time = time.time()
     common_kwargs = dict(
@@ -121,12 +155,9 @@ def run_pareto_sweep(
         episodes_per_round=episodes_per_round, eval_episodes_per_round=eval_episodes_per_round,
         max_steps=max_steps, seed=seed, use_predictor=use_predictor,
         cancel_event=cancel_event, on_round_complete=on_round_complete,
+        on_step_scored=on_step_scored,
     )
     if concurrent:
-        rw_lock = None
-        if use_llm:
-            from readerwriterlock import rwlock
-            rw_lock = rwlock.RWLockFair()
         result = run_pareto_sweep_concurrent(
             **common_kwargs, max_concurrent_members=max_concurrent_members or 3,
             rw_lock=rw_lock, use_cuda_streams=use_llm,

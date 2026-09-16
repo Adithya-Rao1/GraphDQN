@@ -66,7 +66,9 @@ def measure_objective_vector(agent: PGMORLAgent, env_factory: Callable[[], objec
 
 def train_member_one_round(member: PopulationMember, env_factory: Callable[[], object],
                              episodes_per_round: int, max_steps: int, ppo_epochs: int,
-                             cancel_event: Optional[threading.Event] = None) -> None:
+                             cancel_event: Optional[threading.Event] = None,
+                             on_step_scored: Optional[Callable[[str, object], None]] = None) -> None:
+    step_cb = (lambda entry: on_step_scored(member.member_id, entry)) if on_step_scored is not None else None
     for _ in range(episodes_per_round):
         if cancel_event is not None and cancel_event.is_set():
             raise SweepCancelled(f"Sweep cancelled mid-round for {member.member_id}")
@@ -75,7 +77,7 @@ def train_member_one_round(member: PopulationMember, env_factory: Callable[[], o
             entry = member.agent.act(env)
             if entry.done:
                 break
-        member.agent.update(ppo_epochs=ppo_epochs)
+        member.agent.update(ppo_epochs=ppo_epochs, on_step_scored=step_cb)
     member.total_training_steps += episodes_per_round
 
 
@@ -96,6 +98,7 @@ def run_pareto_sweep_sequential(
     use_predictor: bool = True,
     cancel_event: Optional[threading.Event] = None,
     on_round_complete: Callable[[int, List[PopulationMember], List[PerformanceRecord]], None] = None,
+    on_step_scored: Optional[Callable[[str, object], None]] = None,
 ) -> ParetoSweepResult:
     rng = np.random.default_rng(seed)
     center = [
@@ -142,7 +145,7 @@ def run_pareto_sweep_sequential(
             objective_before = list(member.objective_vector)
 
             train_member_one_round(member, env_factory, episodes_per_round, max_steps, ppo_epochs,
-                                    cancel_event=cancel_event)
+                                    cancel_event=cancel_event, on_step_scored=on_step_scored)
 
             objective_after = measure_objective_vector(
                 member.agent, env_factory, eval_episodes_per_round, max_steps,

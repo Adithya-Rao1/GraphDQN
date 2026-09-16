@@ -79,6 +79,17 @@ def render_trajectory_slideshow(api, batch_id: int, trajectories: list) -> None:
           </table>
         """, unsafe_allow_html=True)
 
+        if step.get("applied_edits"):
+            mode_label = f" ({step.get('edit_count_mode')} mode)" if step.get("edit_count_mode") else ""
+            with st.expander(f"Macro-edit chain{mode_label}: {step.get('k_edits_used', len(step['applied_edits']))} edit(s) applied"):
+                for i, edit in enumerate(step["applied_edits"]):
+                    st.markdown(
+                        f'<div class="gdqn-meta">{i + 1}. <b>{edit["edit_id"]}</b> '
+                        f'({edit["category"]}) — {edit["description"]}</div>'
+                        f'<div class="gdqn-smiles">→ {edit["resulting_smiles"]}</div>',
+                        unsafe_allow_html=True,
+                    )
+
         sel_key = (state["traj_idx"], step["step_index"])
         checked = st.checkbox(
             "Select this step as a candidate",

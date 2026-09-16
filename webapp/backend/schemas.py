@@ -191,7 +191,9 @@ class GenerationRequest(BaseModel):
 
 class GenerationBatchOut(BaseModel):
     id: int
-    training_run_id: int
+    training_run_id: Optional[int] = None
+    pareto_sweep_id: Optional[int] = None
+    population_member_config_id: Optional[int] = None
     checkpoint_path_snapshot: str
     num_requested: int
     sampling_strategy: str
@@ -211,6 +213,13 @@ class FineTuneUsageOut(BaseModel):
     created_at: datetime
 
 
+class AppliedEditOut(BaseModel):
+    edit_id: str
+    category: str
+    description: str
+    resulting_smiles: str
+
+
 class TrajectoryStepOut(BaseModel):
     step_index: int
     smiles: str
@@ -221,6 +230,9 @@ class TrajectoryStepOut(BaseModel):
     binding_uM: Optional[float] = None
     sa_score: Optional[float] = None
     selectivity: Optional[float] = None
+    k_edits_used: Optional[int] = None
+    edit_count_mode: Optional[str] = None
+    applied_edits: Optional[List[AppliedEditOut]] = None
 
 
 class TrajectoryOut(BaseModel):
@@ -298,6 +310,7 @@ class ParetoSweepCreate(BaseModel):
     use_predictor: bool = True
     concurrent: bool = False
     max_concurrent_members: Optional[int] = Field(default=None, ge=1)
+    llm_finetune_interval_steps: Optional[int] = Field(default=200, ge=1)
 
     @field_validator("edit_count_mode")
     @classmethod
@@ -329,6 +342,17 @@ class PopulationMemberOut(BaseModel):
     non_dominated: Optional[bool] = None
 
 
+class LLMAdapterCheckpointOut(BaseModel):
+    id: int
+    base_model_name: str
+    adapter_path: str
+    trained_on_pareto_sweep_ids: List[int]
+    num_training_examples: int
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class ParetoSweepOut(BaseModel):
     id: int
     base_config_id: int
@@ -349,6 +373,8 @@ class ParetoSweepOut(BaseModel):
     use_predictor: bool
     concurrent: bool
     max_concurrent_members: Optional[int] = None
+    llm_finetune_interval_steps: Optional[int] = None
+    cumulative_steps_since_finetune: int = 0
     status: str
     progress_current_round: int
     progress_total_rounds: int

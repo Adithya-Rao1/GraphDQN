@@ -15,6 +15,9 @@ Path(CHECKPOINT_ROOT).mkdir(parents=True, exist_ok=True)
 PARETO_SWEEP_CHECKPOINT_ROOT = str(DATA_DIR / "checkpoints" / "pareto_sweep")
 Path(PARETO_SWEEP_CHECKPOINT_ROOT).mkdir(parents=True, exist_ok=True)
 
+LLM_ADAPTER_CHECKPOINT_ROOT = str(DATA_DIR / "checkpoints" / "llm_adapters")
+Path(LLM_ADAPTER_CHECKPOINT_ROOT).mkdir(parents=True, exist_ok=True)
+
 JWT_SECRET = os.environ.get("GRAPHDQN_JWT_SECRET", secrets.token_hex(32))
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_MINUTES = 60 * 24 * 7  # 1 week

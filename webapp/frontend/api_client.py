@@ -101,8 +101,23 @@ class ApiClient:
     def get_generation_batch(self, batch_id: int) -> dict:
         return self._request("GET", f"/api/generation-batches/{batch_id}")
 
-    def list_generation_batches(self, training_run_id: int) -> list:
-        return self._request("GET", "/api/generation-batches", params={"training_run_id": training_run_id})
+    def list_generation_batches(self, training_run_id: Optional[int] = None, pareto_sweep_id: Optional[int] = None,
+                                 population_member_config_id: Optional[int] = None) -> list:
+        params = {}
+        if training_run_id is not None:
+            params["training_run_id"] = training_run_id
+        if pareto_sweep_id is not None:
+            params["pareto_sweep_id"] = pareto_sweep_id
+        if population_member_config_id is not None:
+            params["population_member_config_id"] = population_member_config_id
+        return self._request("GET", "/api/generation-batches", params=params)
+
+    def generate_sweep_candidates(self, sweep_id: int, member_config_id: int, payload: dict) -> dict:
+        return self._request("POST", f"/api/pareto-sweeps/{sweep_id}/members/{member_config_id}/generate",
+                              json=payload)
+
+    def list_pareto_adapter_checkpoints(self, sweep_id: int) -> list:
+        return self._request("GET", f"/api/pareto-sweeps/{sweep_id}/adapter-checkpoints")
 
     def get_trajectories(self, batch_id: int) -> list:
         return self._request("GET", f"/api/generation-batches/{batch_id}/trajectories")

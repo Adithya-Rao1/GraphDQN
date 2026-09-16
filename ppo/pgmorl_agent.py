@@ -1,6 +1,6 @@
 import random
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence
+from typing import Callable, Dict, List, Optional, Sequence
 
 import torch
 import torch.nn as nn
@@ -91,6 +91,8 @@ class PGMORLAgent:
         lr: float = 3e-4,
         ppo_minibatch_size: Optional[int] = 4,
         shared_llm_backbone=None,
+        temperature: float = 1.0,
+        greedy: bool = False,
     ):
         if edit_count_mode not in VALID_EDIT_COUNT_MODES:
             raise ValueError(f"edit_count_mode must be one of {VALID_EDIT_COUNT_MODES}, got {edit_count_mode!r}")
@@ -139,6 +141,8 @@ class PGMORLAgent:
         self.value_coef = value_coef
         self.reward_batch_size = reward_batch_size
         self.ppo_minibatch_size = ppo_minibatch_size
+        self.sampling_temperature = temperature
+        self.greedy = greedy
 
         self.shared_llm_backbone = shared_llm_backbone
         if use_llm and self.shared_llm_backbone is None:
@@ -216,7 +220,9 @@ class PGMORLAgent:
         descriptor = [self._descriptor_text(state_smiles, target_name)] if self.actor.use_llm else None
         with torch.no_grad():
             _, k_logits = self.actor(batch, descriptor)
-        k_idx, k_log_prob, _ = sample_edit(k_logits.squeeze(0))
+        k_idx, k_log_prob, _ = sample_edit(
+            k_logits.squeeze(0), temperature=self.sampling_temperature, greedy=self.greedy
+        )
         return int(k_idx.item()) + 1, k_log_prob.item()  # k in {1..k_max}
 
     def _attempt_macro_action(self, initial_state: str, k: int, target_name: Optional[str]):
@@ -231,7 +237,9 @@ class PGMORLAgent:
             descriptor = [self._descriptor_text(current_smiles, target_name)] if self.actor.use_llm else None
             with torch.no_grad():
                 edit_logits, _ = self.actor(batch, descriptor)
-            idx, log_prob, _ = sample_edit(edit_logits.squeeze(0))
+            idx, log_prob, _ = sample_edit(
+                edit_logits.squeeze(0), temperature=self.sampling_temperature, greedy=self.greedy
+            )
             edit_id = self.catalog[int(idx.item())].id
 
             result = compose_macro_action(current_smiles, [edit_id], self.catalog_by_id)
@@ -315,12 +323,17 @@ class PGMORLAgent:
             total_entropy = total_entropy + entropy
         return total_log_prob, total_entropy
 
-    def update(self, ppo_epochs: int = 4, target_name: Optional[str] = None) -> dict:
+    def update(self, ppo_epochs: int = 4, target_name: Optional[str] = None,
+               on_step_scored: Optional[Callable[["MacroStepMemory"], None]] = None) -> dict:
         if not self.memory:
             return {"policy_loss": 0.0, "value_loss": 0.0, "entropy": 0.0,
                      "episode_reward": 0.0, "mean_reward": 0.0}
 
         self._compute_rewards_for_memory()
+
+        if on_step_scored is not None:
+            for entry in self.memory:
+                on_step_scored(entry)
 
         rewards = [m.reward for m in self.memory]
         values = [m.value_scalar for m in self.memory]

@@ -74,8 +74,33 @@ def render_pareto_sweep_progress(api, sweep_id: int, allow_kill: bool = True) ->
         if members:
             st.markdown('<span class="gdqn-meta">Each row is one trade-off point discovered by the sweep — '
                         'its config is saved to your database (tagged as sweep-generated) and can be used to '
-                        'generate candidates like any other config.</span>', unsafe_allow_html=True)
+                        'generate candidates like any other config (see the Candidates page).</span>',
+                        unsafe_allow_html=True)
             st.dataframe(_members_dataframe(members), use_container_width=True)
+
+        if sweep.get("use_llm"):
+            with st.expander("LLM adapter fine-tune history"):
+                try:
+                    checkpoints = api.list_pareto_adapter_checkpoints(sweep_id)
+                except ApiError as e:
+                    checkpoints = []
+                    st.error(e.detail)
+                if checkpoints:
+                    st.dataframe(pd.DataFrame([
+                        {
+                            "Adapter checkpoint": c["id"],
+                            "Base model": c["base_model_name"],
+                            "Training examples": c["num_training_examples"],
+                            "Created": c["created_at"],
+                        }
+                        for c in checkpoints
+                    ]), use_container_width=True)
+                else:
+                    st.markdown(
+                        '<span class="gdqn-meta">No fine-tune cycles have run yet for this sweep '
+                        '(needs cumulative_steps_since_finetune to cross llm_finetune_interval_steps).</span>',
+                        unsafe_allow_html=True,
+                    )
     elif status == "cancelled":
         st.warning("Sweep was cancelled")
     else:
