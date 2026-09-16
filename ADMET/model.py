@@ -44,6 +44,16 @@ from typing import Union, Optional, Dict, List
 
 Molecule = Union[str, Mol]
 
+_rdkit_2d_normalized_generator = None
+
+
+def _get_rdkit_2d_normalized_generator() -> rdNormalizedDescriptors.RDKit2DNormalized:
+    global _rdkit_2d_normalized_generator
+    if _rdkit_2d_normalized_generator is None:
+        _rdkit_2d_normalized_generator = rdNormalizedDescriptors.RDKit2DNormalized()
+    return _rdkit_2d_normalized_generator
+
+
 def compute_rdkit_fingerprint(mol: Molecule) -> np.ndarray:
     """Generates RDKit 2D normalized features for a molecule.
 
@@ -51,7 +61,7 @@ def compute_rdkit_fingerprint(mol: Molecule) -> np.ndarray:
     :return: A 1D numpy array containing the RDKit 2D normalized features.
     """
     smiles = Chem.MolToSmiles(mol, isomericSmiles=True) if type(mol) != str else mol
-    generator = rdNormalizedDescriptors.RDKit2DNormalized()
+    generator = _get_rdkit_2d_normalized_generator()
     rdkit_fp = generator.process(smiles)[1:]
     rdkit_fp = np.where(np.isnan(rdkit_fp), 0, rdkit_fp)
     rdkit_fp = rdkit_fp.astype(np.float32)
@@ -294,7 +304,6 @@ class ADMETModel:
         else:
             fingerprints = [None] * len(smiles)
 
-        # Build data loader
         data_loader = MoleculeDataLoader(
             dataset=MoleculeDataset(
                 [
@@ -302,7 +311,7 @@ class ADMETModel:
                     for smile, fingerprint in zip(smiles, fingerprints)
                 ]
             ),
-            num_workers=self.num_workers,
+            num_workers=self.num_workers if len(smiles) >= self.fingerprint_multiprocessing_min else 0,
             shuffle=False,
         )
 
