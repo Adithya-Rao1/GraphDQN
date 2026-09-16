@@ -160,3 +160,29 @@ class FineTuneFeedback(Base):
     training_run_id = Column(Integer, ForeignKey("training_runs.id"), nullable=False, index=True)
     candidate_id = Column(Integer, ForeignKey("generated_candidates.id"), nullable=False)
     user_rating_snapshot = Column(Float, nullable=False)
+
+
+class EditOutcomeLog(Base):
+    __tablename__ = "edit_outcome_logs"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    training_run_id = Column(Integer, ForeignKey("training_runs.id"), nullable=False, index=True)
+
+    step_index = Column(Integer, nullable=False)
+    parent_smiles = Column(String, nullable=False)
+    applied_edit_ids = Column(JSON, nullable=False)  # list[str], possibly empty (zero-edit fallback step)
+    k_edits_used = Column(Integer, nullable=False)
+    edit_count_mode = Column(String, nullable=False)  # "fixed" | "random" | "learned"
+    resulting_smiles = Column(String, nullable=False)
+
+    admet_score = Column(Float, nullable=True)
+    binding_uM = Column(Float, nullable=True)
+    sa_score = Column(Float, nullable=True)
+    selectivity = Column(Float, nullable=True)
+    reward = Column(Float, nullable=False)
+    reward_vector = Column(JSON, nullable=False)  # [admet, binding, sa, selectivity]
+
+    consumed_by_finetune = Column(Boolean, nullable=False, default=False)
+
+    created_at = Column(DateTime, server_default=func.now())
