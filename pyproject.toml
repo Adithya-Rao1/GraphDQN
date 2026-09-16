@@ -16,6 +16,7 @@ dependencies = [
     "transformers",
     "peft",
     "pymoo",
+    "readerwriterlock",
     "onnxruntime",
     "diskcache",
     "tqdm",

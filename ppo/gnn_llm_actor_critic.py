@@ -150,9 +150,10 @@ class _GNNLLMBackbone(nn.Module):
             encoded = self.tokenizer(
                 list(descriptor_texts), return_tensors="pt", padding=True, truncation=True,
             ).to(device)
+            llm_kwargs = dict(encoded)
             if hasattr(self.llm, "set_adapter"):
-                self.llm.set_adapter(self._adapter_name)
-            llm_out = self.llm(**encoded, output_hidden_states=True)
+                llm_kwargs["adapter_names"] = [self._adapter_name] * encoded["input_ids"].shape[0]
+            llm_out = self.llm(**llm_kwargs, output_hidden_states=True)
             hidden_states = getattr(llm_out, "last_hidden_state", None)
             if hidden_states is None:
                 hidden_states = llm_out.hidden_states[-1]

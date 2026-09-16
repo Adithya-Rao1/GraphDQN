@@ -44,7 +44,7 @@ class ParetoSweepResult:
     predictor: PerformancePredictor
 
 
-def _measure_objective_vector(agent: PGMORLAgent, env_factory: Callable[[], object],
+def measure_objective_vector(agent: PGMORLAgent, env_factory: Callable[[], object],
                                num_eval_episodes: int, max_steps: int) -> List[float]:
     agent.memory.clear()
     for _ in range(num_eval_episodes):
@@ -59,7 +59,7 @@ def _measure_objective_vector(agent: PGMORLAgent, env_factory: Callable[[], obje
     return vectors.mean(axis=0).tolist() if len(vectors) else [0.0] * OBJECTIVE_DIM
 
 
-def _train_member_one_round(member: PopulationMember, env_factory: Callable[[], object],
+def train_member_one_round(member: PopulationMember, env_factory: Callable[[], object],
                              episodes_per_round: int, max_steps: int, ppo_epochs: int) -> None:
     for _ in range(episodes_per_round):
         env = env_factory()
@@ -107,7 +107,7 @@ def run_pareto_sweep_sequential(
     records: List[PerformanceRecord] = []
 
     for member in members:
-        member.objective_vector = _measure_objective_vector(
+        member.objective_vector = measure_objective_vector(
             member.agent, env_factory, eval_episodes_per_round, max_steps,
         )
 
@@ -131,9 +131,9 @@ def run_pareto_sweep_sequential(
             member = members[int(idx)]
             objective_before = list(member.objective_vector)
 
-            _train_member_one_round(member, env_factory, episodes_per_round, max_steps, ppo_epochs)
+            train_member_one_round(member, env_factory, episodes_per_round, max_steps, ppo_epochs)
 
-            objective_after = _measure_objective_vector(
+            objective_after = measure_objective_vector(
                 member.agent, env_factory, eval_episodes_per_round, max_steps,
             )
             member.objective_vector = objective_after

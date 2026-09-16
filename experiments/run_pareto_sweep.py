@@ -17,6 +17,7 @@ from ppo.gnn_llm_actor_critic import build_shared_llm_backbone, default_qwen2_lo
 from ppo.pgmorl_agent import DEFAULT_LLM_MODEL_NAME, PGMORLAgent
 from ppo.pgmorl_predictor import hypervolume, non_dominated_indices
 from ppo.pgmorl_population import run_pareto_sweep_sequential
+from ppo.pgmorl_concurrent import run_pareto_sweep_concurrent
 from reward.multi_objective import RewardConfig
 from synthetic_accessibility.sa_score import SyntheticAccessibility
 
@@ -29,7 +30,8 @@ def run(target_name=DEFAULT_TARGET, seed=0, num_molecules=30,
         synthetic_weight=dqn_hyp.synthetic_weight, selectivity_weight=0.0,
         use_llm=False, llm_model_name=DEFAULT_LLM_MODEL_NAME, llm_torch_dtype=torch.bfloat16,
         reward_batch_size=8, predictors_device=None, ppo_minibatch_size=4,
-        use_predictor=True, run_id=None, results_root='./experiments/results'):
+        use_predictor=True, concurrent=False, max_concurrent_members=3,
+        run_id=None, results_root='./experiments/results'):
     run_id = run_id or (
         f"pareto_sweep_{'naive' if not use_predictor else 'gp'}_{target_name}_seed{seed}_"
         f"{time.strftime('%Y%m%d-%H%M%S')}"
@@ -75,12 +77,24 @@ def run(target_name=DEFAULT_TARGET, seed=0, num_molecules=30,
         )
 
     start_time = time.time()
-    result = run_pareto_sweep_sequential(
-        base_reward_config=base_config, build_agent_fn=build_agent_fn, env_factory=env_factory,
-        population_size=population_size, concentration_alpha=concentration_alpha, num_rounds=num_rounds,
-        episodes_per_round=episodes_per_round, eval_episodes_per_round=eval_episodes_per_round,
-        max_steps=max_steps, ppo_epochs=ppo_epochs, beta=beta, seed=seed, use_predictor=use_predictor,
-    )
+    if concurrent:
+        from readerwriterlock import rwlock
+        rw_lock = rwlock.RWLockFair() if use_llm else None
+        result = run_pareto_sweep_concurrent(
+            base_reward_config=base_config, build_agent_fn=build_agent_fn, env_factory=env_factory,
+            population_size=population_size, concentration_alpha=concentration_alpha, num_rounds=num_rounds,
+            episodes_per_round=episodes_per_round, eval_episodes_per_round=eval_episodes_per_round,
+            max_steps=max_steps, ppo_epochs=ppo_epochs, beta=beta, seed=seed,
+            max_concurrent_members=max_concurrent_members, rw_lock=rw_lock, use_cuda_streams=use_llm,
+            use_predictor=use_predictor,
+        )
+    else:
+        result = run_pareto_sweep_sequential(
+            base_reward_config=base_config, build_agent_fn=build_agent_fn, env_factory=env_factory,
+            population_size=population_size, concentration_alpha=concentration_alpha, num_rounds=num_rounds,
+            episodes_per_round=episodes_per_round, eval_episodes_per_round=eval_episodes_per_round,
+            max_steps=max_steps, ppo_epochs=ppo_epochs, beta=beta, seed=seed, use_predictor=use_predictor,
+        )
     wall_clock = time.time() - start_time
 
     import numpy as np
@@ -99,6 +113,8 @@ def run(target_name=DEFAULT_TARGET, seed=0, num_molecules=30,
         "run_id": run_id,
         "algorithm": "pareto_sweep",
         "use_predictor": use_predictor,
+        "concurrent": concurrent,
+        "max_concurrent_members": max_concurrent_members if concurrent else None,
         "target": target_name,
         "seed": seed,
         "population_size": population_size,
@@ -154,6 +170,8 @@ if __name__ == "__main__":
     parser.add_argument("--predictors-device", default=None, choices=[None, "cpu", "cuda"])
     parser.add_argument("--ppo-minibatch-size", type=int, default=4)
     parser.add_argument("--naive-baseline", action="store_true",)
+    parser.add_argument("--concurrent", action="store_true",)
+    parser.add_argument("--max-concurrent-members", type=int, default=3,)
     parser.add_argument("--run-id", default=None)
     args = parser.parse_args()
 
@@ -177,6 +195,8 @@ if __name__ == "__main__":
         predictors_device=args.predictors_device,
         ppo_minibatch_size=args.ppo_minibatch_size or None,
         use_predictor=not args.naive_baseline,
+        concurrent=args.concurrent,
+        max_concurrent_members=args.max_concurrent_members,
         run_id=args.run_id,
     )
     print(json.dumps(result_summary, indent=2))
