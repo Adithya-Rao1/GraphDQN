@@ -11,7 +11,7 @@ from experiments.data.targets import TARGETS, DEFAULT_TARGET
 from experiments.data.starting_molecules import sample_pilot_molecules
 from molecular_modifications.macro_actions import build_edit_catalog
 from reward.multi_objective import RewardConfig
-from ppo.pgmorl_agent import PGMORLAgent
+from ppo.pgmorl_agent import DEFAULT_LLM_MODEL_NAME, PGMORLAgent
 from ADMET.model import ADMETModel
 from binding_module.binding_affinity.plapt import Plapt
 from synthetic_accessibility.sa_score import SyntheticAccessibility
@@ -23,6 +23,7 @@ def run(target_name=DEFAULT_TARGET, seed=0, num_molecules=30, num_episodes=200,
         entropy_coef=0.01, value_coef=0.5,
         admet_weight=dqn_hyp.admet_weight, binding_weight=dqn_hyp.binding_weight,
         synthetic_weight=dqn_hyp.synthetic_weight, selectivity_weight=0.0,
+        use_llm=False, llm_model_name=DEFAULT_LLM_MODEL_NAME,
         checkpoint_interval=50, run_id=None, use_wandb=False,
         checkpoint_root='./checkpoints/pgmorl_ppo', results_root='./experiments/results'):
     run_id = run_id or f"pgmorl_ppo_{target_name}_seed{seed}_{time.strftime('%Y%m%d-%H%M%S')}"
@@ -42,7 +43,8 @@ def run(target_name=DEFAULT_TARGET, seed=0, num_molecules=30, num_episodes=200,
     agent = PGMORLAgent(
         catalog=catalog, reward_config=reward_config, target_seq=target_seq, device=device,
         admet_model=admet_model, binding_model=binding_model, sa_model=sa_model,
-        hidden_dim=hidden_dim, use_llm=False, edit_count_mode="fixed",
+        hidden_dim=hidden_dim, use_llm=use_llm, llm_model_name=llm_model_name if use_llm else None,
+        edit_count_mode="fixed",
         fixed_edit_count=fixed_edit_count, gamma=gamma, gae_lambda=gae_lambda,
         clip_eps=clip_eps, entropy_coef=entropy_coef, value_coef=value_coef, lr=lr,
     )
@@ -70,20 +72,18 @@ def run(target_name=DEFAULT_TARGET, seed=0, num_molecules=30, num_episodes=200,
         env = MoleculeEnv(init_mol=start_mol, max_steps=max_steps)
         env.initialize()
 
-        final_reward = 0.0
         zero_edit_fallbacks = 0
         for step in range(max_steps):
             entry = agent.act(env)
-            final_reward = entry.reward
             if entry.k_used == 0:
                 zero_edit_fallbacks += 1
             if entry.done:
                 break
 
+        update_stats = agent.update(ppo_epochs=ppo_epochs)
+        final_reward = update_stats["episode_reward"]
         episode_rewards.append(final_reward)
         episode_zero_edit_fallback_counts.append(zero_edit_fallbacks)
-
-        update_stats = agent.update(ppo_epochs=ppo_epochs)
 
         if wandb_run:
             wandb_run.log({"episode": episode, "reward": final_reward, **update_stats})
@@ -107,6 +107,8 @@ def run(target_name=DEFAULT_TARGET, seed=0, num_molecules=30, num_episodes=200,
         "num_molecules": num_molecules,
         "num_episodes": num_episodes,
         "fixed_edit_count": fixed_edit_count,
+        "use_llm": use_llm,
+        "llm_model_name": llm_model_name if use_llm else None,
         "final_reward": episode_rewards[-1] if episode_rewards else None,
         "mean_reward_last_10": (sum(episode_rewards[-10:]) / len(episode_rewards[-10:])) if episode_rewards else None,
         "mean_zero_edit_fallback_rate": (
@@ -136,6 +138,8 @@ if __name__ == "__main__":
     parser.add_argument("--max-steps", type=int, default=dqn_hyp.max_steps)
     parser.add_argument("--fixed-edit-count", type=int, default=1)
     parser.add_argument("--ppo-epochs", type=int, default=4)
+    parser.add_argument("--use-llm", action="store_true",)
+    parser.add_argument("--llm-model-name", default=DEFAULT_LLM_MODEL_NAME)
     parser.add_argument("--checkpoint-interval", type=int, default=50)
     parser.add_argument("--run-id", default=None)
     parser.add_argument("--wandb", action="store_true")
@@ -149,6 +153,8 @@ if __name__ == "__main__":
         max_steps=args.max_steps,
         fixed_edit_count=args.fixed_edit_count,
         ppo_epochs=args.ppo_epochs,
+        use_llm=args.use_llm,
+        llm_model_name=args.llm_model_name,
         checkpoint_interval=args.checkpoint_interval,
         run_id=args.run_id,
         use_wandb=args.wandb,
