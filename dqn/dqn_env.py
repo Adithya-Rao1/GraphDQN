@@ -10,12 +10,6 @@ from rdkit.Chem import AllChem
 from rdkit import DataStructs
 from rdkit import RDLogger
 
-# The Modify* classes below try many candidate edits per step and discard the
-# ones that fail sanitization/valence checks -- that's expected, already
-# handled via try/except, and produces a flood of RDKit C++-level warnings
-# ("Explicit valence...", "non-ring atom marked aromatic") that aren't
-# actionable. Silence them; real issues are still surfaced via each class's
-# own Python logger when log=True.
 RDLogger.DisableLog('rdApp.*')
 
 from molecular_modifications.bioisosteres_optimization import ModifyBioisosteres
@@ -23,18 +17,13 @@ from molecular_modifications.atom_optimization import ModifyAtom
 from molecular_modifications.bond_optimization import ModifyBond
 from molecular_modifications.functional_group_optimization import ModifyFunctionalGroup
 from molecular_modifications.logger import setup_molecule_logger
+from molecular_modifications.chemistry_constants import find_unsupported_elements
 
 modify_atom = ModifyAtom(setup_molecule_logger())
 modify_bond = ModifyBond(setup_molecule_logger())
 modify_bio = ModifyBioisosteres(setup_molecule_logger())
 modify_fg = ModifyFunctionalGroup(setup_molecule_logger())
 
-# Functional-group edits to try each step. Removal groups are single-attachment
-# substituents ModifyFunctionalGroup can find and remove; modify pairs are
-# limited to fragments FG_FRAGMENT_SMILES actually defines (both ends);
-# add groups use whatever attachment site functional_group_add_sites finds
-# first, mirroring how modify_atom/modify_bond pick one site per call rather
-# than enumerating every possibility.
 _FG_REMOVE_GROUPS = [
     'methyl', 'hydroxyl', 'amino', 'carboxyl', 'carbonyl', 'aldehyde',
     'ketone', 'ether', 'ester', 'amide', 'nitro', 'cyano', 'thiol',
@@ -161,7 +150,8 @@ class MoleculeEnv(object):
         self._valid_actions = []
         self._target_fn = target_fn
         self._path = []
-    
+        self._macro_edit_traces = []
+
     @property
     def state(self):
         return self._state
@@ -169,13 +159,17 @@ class MoleculeEnv(object):
     @property
     def num_steps_taken(self):
         return self._counter
-    
+
     def get_path(self):
         return self._path
-    
+
+    def get_macro_edit_traces(self):
+        return self._macro_edit_traces
+
     def initialize(self):
         self._state = self.init_mol
         self._path = [self._state]
+        self._macro_edit_traces = [None]
         self._valid_actions = get_all_actions(None)
         self._counter = 0
     
@@ -205,9 +199,34 @@ class MoleculeEnv(object):
             raise ValueError("This episode has been terminated.")
         if action not in self._valid_actions:
             raise ValueError(f"Invalid action: {action}")
-        
+
         self._state = action
         self._path.append(self._state)
+        self._macro_edit_traces.append(None)
+        self._counter += 1
+        result = Result(
+            state=self._state,
+            reward=self._reward(),
+            terminated=(self._counter >= self.max_steps) or self._goal_reached(),
+        )
+
+        return result
+
+    def step_macro(self, final_smiles, edit_trace=None):
+        if self._counter >= self.max_steps or self._goal_reached():
+            raise ValueError("This episode has been terminated.")
+
+        mol = Chem.MolFromSmiles(final_smiles)
+        if mol is None:
+            raise ValueError(f"Invalid state: {final_smiles!r} is not a parseable molecule.")
+
+        unsupported = find_unsupported_elements(mol)
+        if unsupported:
+            raise ValueError(f"Invalid state: {final_smiles!r} contains unsupported element(s): {', '.join(unsupported)}.")
+
+        self._state = final_smiles
+        self._path.append(self._state)
+        self._macro_edit_traces.append(edit_trace)
         self._counter += 1
         result = Result(
             state=self._state,
