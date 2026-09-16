@@ -75,6 +75,7 @@ class PGMORLAgent:
         use_llm: bool = False,
         llm_model_name: Optional[str] = None,
         lora_config=None,
+        llm_torch_dtype=torch.bfloat16,
         edit_count_mode: str = "fixed",
         fixed_edit_count: int = 1,
         edit_count_range: Optional[Sequence[int]] = None,
@@ -140,6 +141,7 @@ class PGMORLAgent:
             critic_lora = lora_config if lora_config is not None else default_qwen2_lora_config()
             self.shared_llm_backbone = build_shared_llm_backbone(
                 llm_model_name, {"actor": actor_lora, "critic": critic_lora},
+                torch_dtype=llm_torch_dtype,
             )
 
         self.actor = GNNLLMActor(
@@ -165,14 +167,6 @@ class PGMORLAgent:
         self.memory: List[MacroStepMemory] = []
 
     def _compute_rewards_for_memory(self) -> None:
-        """Backfill reward/reward_vector for every entry currently in
-        self.memory via ONE batched compute_reward_batch() call, instead of
-        one ADMET/PLAPT round-trip per macro-step during rollout. Safe to
-        defer this far: nothing during rollout (action selection in act(),
-        or env.step_macro()'s termination check) ever reads reward or
-        reward_vector -- only update()'s GAE computation does, so scoring
-        can happen once, right before that, over the whole episode's
-        macro-steps at once."""
         if not self.memory:
             return
         results = compute_reward_batch(

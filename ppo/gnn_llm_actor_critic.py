@@ -67,14 +67,14 @@ class CrossAttentionFusion(nn.Module):
         return fused  
 
 
-def build_shared_llm_backbone(llm_model_name: str, adapter_lora_configs: dict):
+def build_shared_llm_backbone(llm_model_name: str, adapter_lora_configs: dict, torch_dtype=None):
     from transformers import AutoModel, AutoTokenizer
     from peft import get_peft_model
 
     tokenizer = AutoTokenizer.from_pretrained(llm_model_name)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
-    base_llm = AutoModel.from_pretrained(llm_model_name)
+    base_llm = AutoModel.from_pretrained(llm_model_name, torch_dtype=torch_dtype)
 
     names = list(adapter_lora_configs.keys())
     peft_model = get_peft_model(base_llm, adapter_lora_configs[names[0]], adapter_name=names[0])
@@ -98,6 +98,7 @@ class _GNNLLMBackbone(nn.Module):
     def __init__(self, hidden_dim: int = 256, feature_dim: int = NODE_FEATURE_DIM,
                  edge_dim: int = EDGE_FEATURE_DIM, use_llm: bool = False,
                  llm_model_name: Optional[str] = None, lora_config=None,
+                 torch_dtype=None,
                  shared_llm_backbone=None, adapter_name: Optional[str] = None):
         super().__init__()
         self.use_llm = use_llm
@@ -119,7 +120,7 @@ class _GNNLLMBackbone(nn.Module):
                 self.tokenizer = AutoTokenizer.from_pretrained(llm_model_name)
                 if self.tokenizer.pad_token is None:
                     self.tokenizer.pad_token = self.tokenizer.eos_token
-                base_llm = AutoModel.from_pretrained(llm_model_name)
+                base_llm = AutoModel.from_pretrained(llm_model_name, torch_dtype=torch_dtype)
                 self._adapter_name = adapter_name or "default"
                 self.llm = (
                     get_peft_model(base_llm, lora_config, adapter_name=self._adapter_name)
@@ -152,9 +153,10 @@ class _GNNLLMBackbone(nn.Module):
             if hasattr(self.llm, "set_adapter"):
                 self.llm.set_adapter(self._adapter_name)
             llm_out = self.llm(**encoded, output_hidden_states=True)
-            hidden_states = getattr(llm_out, "last_hidden_state", None).float()
+            hidden_states = getattr(llm_out, "last_hidden_state", None)
             if hidden_states is None:
                 hidden_states = llm_out.hidden_states[-1]
+            hidden_states = hidden_states.float()
             fused = self.fusion(graph_embedding, hidden_states, encoded["attention_mask"])
         else:
             fused = graph_embedding
@@ -166,10 +168,12 @@ class GNNLLMActor(_GNNLLMBackbone):
     def __init__(self, num_edit_ops: int, hidden_dim: int = 256,
                  feature_dim: int = NODE_FEATURE_DIM, edge_dim: int = EDGE_FEATURE_DIM,
                  use_llm: bool = False, llm_model_name: Optional[str] = None, lora_config=None,
+                 torch_dtype=None,
                  shared_llm_backbone=None, adapter_name: Optional[str] = None,
                  edit_count_mode: str = "fixed", k_max: Optional[int] = None):
         super().__init__(hidden_dim=hidden_dim, feature_dim=feature_dim, edge_dim=edge_dim,
                           use_llm=use_llm, llm_model_name=llm_model_name, lora_config=lora_config,
+                          torch_dtype=torch_dtype,
                           shared_llm_backbone=shared_llm_backbone, adapter_name=adapter_name)
         self.edit_count_mode = edit_count_mode
         self.k_max = k_max
@@ -195,9 +199,11 @@ class GNNLLMCritic(_GNNLLMBackbone):
     def __init__(self, hidden_dim: int = 256, feature_dim: int = NODE_FEATURE_DIM,
                  edge_dim: int = EDGE_FEATURE_DIM, use_llm: bool = False,
                  llm_model_name: Optional[str] = None, lora_config=None,
+                 torch_dtype=None,
                  shared_llm_backbone=None, adapter_name: Optional[str] = None):
         super().__init__(hidden_dim=hidden_dim, feature_dim=feature_dim, edge_dim=edge_dim,
                           use_llm=use_llm, llm_model_name=llm_model_name, lora_config=lora_config,
+                          torch_dtype=torch_dtype,
                           shared_llm_backbone=shared_llm_backbone, adapter_name=adapter_name)
         self.value_head = nn.Linear(self.head_dim, self.OBJECTIVE_DIM)
 

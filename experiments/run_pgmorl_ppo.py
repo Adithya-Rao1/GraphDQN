@@ -23,7 +23,7 @@ def run(target_name=DEFAULT_TARGET, seed=0, num_molecules=30, num_episodes=200,
         entropy_coef=0.01, value_coef=0.5,
         admet_weight=dqn_hyp.admet_weight, binding_weight=dqn_hyp.binding_weight,
         synthetic_weight=dqn_hyp.synthetic_weight, selectivity_weight=0.0,
-        use_llm=False, llm_model_name=DEFAULT_LLM_MODEL_NAME,
+        use_llm=False, llm_model_name=DEFAULT_LLM_MODEL_NAME, llm_torch_dtype=torch.bfloat16,
         checkpoint_interval=50, run_id=None, use_wandb=False,
         checkpoint_root='./checkpoints/pgmorl_ppo', results_root='./experiments/results'):
     run_id = run_id or f"pgmorl_ppo_{target_name}_seed{seed}_{time.strftime('%Y%m%d-%H%M%S')}"
@@ -44,6 +44,7 @@ def run(target_name=DEFAULT_TARGET, seed=0, num_molecules=30, num_episodes=200,
         catalog=catalog, reward_config=reward_config, target_seq=target_seq, device=device,
         admet_model=admet_model, binding_model=binding_model, sa_model=sa_model,
         hidden_dim=hidden_dim, use_llm=use_llm, llm_model_name=llm_model_name if use_llm else None,
+        llm_torch_dtype=llm_torch_dtype,
         edit_count_mode="fixed",
         fixed_edit_count=fixed_edit_count, gamma=gamma, gae_lambda=gae_lambda,
         clip_eps=clip_eps, entropy_coef=entropy_coef, value_coef=value_coef, lr=lr,
@@ -140,6 +141,7 @@ if __name__ == "__main__":
     parser.add_argument("--ppo-epochs", type=int, default=4)
     parser.add_argument("--use-llm", action="store_true",)
     parser.add_argument("--llm-model-name", default=DEFAULT_LLM_MODEL_NAME)
+    parser.add_argument("--llm-dtype", default="bfloat16", choices=["bfloat16", "float16", "float32"],)
     parser.add_argument("--checkpoint-interval", type=int, default=50)
     parser.add_argument("--run-id", default=None)
     parser.add_argument("--wandb", action="store_true")
@@ -155,6 +157,7 @@ if __name__ == "__main__":
         ppo_epochs=args.ppo_epochs,
         use_llm=args.use_llm,
         llm_model_name=args.llm_model_name,
+        llm_torch_dtype=getattr(torch, args.llm_dtype),
         checkpoint_interval=args.checkpoint_interval,
         run_id=args.run_id,
         use_wandb=args.wandb,

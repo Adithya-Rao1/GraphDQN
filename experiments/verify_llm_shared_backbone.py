@@ -27,12 +27,20 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"device={device}")
 
-    print(f"Building shared backbone from {TEST_MODEL_NAME} with 'actor'/'critic' adapters...")
+    print(f"Building shared backbone from {TEST_MODEL_NAME} with 'actor'/'critic' adapters (bfloat16)...")
     tokenizer, peft_model = build_shared_llm_backbone(
         TEST_MODEL_NAME,
         {"actor": default_qwen2_lora_config(), "critic": default_qwen2_lora_config()},
+        torch_dtype=torch.bfloat16,
     )
     shared_backbone = (tokenizer, peft_model)
+
+    base_param_dtypes = {p.dtype for n, p in peft_model.named_parameters() if "lora_" not in n}
+    print(f"frozen base parameter dtypes: {base_param_dtypes}")
+    assert base_param_dtypes == {torch.bfloat16}, (
+        f"expected the frozen base to load in bfloat16 (torch_dtype= wasn't honored), got {base_param_dtypes}"
+    )
+    print("[PASS] frozen base loaded in bfloat16 (not the fp32 default -- this is the actual OOM fix for 7B)")
 
     actor = GNNLLMActor(
         num_edit_ops=52, hidden_dim=64, use_llm=True,
