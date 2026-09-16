@@ -76,6 +76,7 @@ class PGMORLAgent:
         llm_model_name: Optional[str] = None,
         lora_config=None,
         llm_torch_dtype=torch.bfloat16,
+        reward_batch_size: Optional[int] = 8,
         edit_count_mode: str = "fixed",
         fixed_edit_count: int = 1,
         edit_count_range: Optional[Sequence[int]] = None,
@@ -133,6 +134,7 @@ class PGMORLAgent:
         self.clip_eps = clip_eps
         self.entropy_coef = entropy_coef
         self.value_coef = value_coef
+        self.reward_batch_size = reward_batch_size
 
         self.shared_llm_backbone = None
         if use_llm:
@@ -169,18 +171,22 @@ class PGMORLAgent:
     def _compute_rewards_for_memory(self) -> None:
         if not self.memory:
             return
-        results = compute_reward_batch(
-            [m.final_smiles for m in self.memory],
-            target_seq=self.target_seq, device=self.device, off_target_seq=self.off_target_seq,
-            admet_model=self.admet_model, binding_model=self.binding_model, sa_model=self.sa_model,
-            **self.reward_config.to_compute_reward_kwargs(),
-        )
-        for entry, result in zip(self.memory, results):
-            entry.reward = float(result["reward"])
-            entry.reward_vector = list(result["reward_vector"])
 
-        if self.actor.use_llm and torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        chunk_size = self.reward_batch_size or len(self.memory)
+        for start in range(0, len(self.memory), chunk_size):
+            chunk_entries = self.memory[start:start + chunk_size]
+            results = compute_reward_batch(
+                [m.final_smiles for m in chunk_entries],
+                target_seq=self.target_seq, device=self.device, off_target_seq=self.off_target_seq,
+                admet_model=self.admet_model, binding_model=self.binding_model, sa_model=self.sa_model,
+                **self.reward_config.to_compute_reward_kwargs(),
+            )
+            for entry, result in zip(chunk_entries, results):
+                entry.reward = float(result["reward"])
+                entry.reward_vector = list(result["reward_vector"])
+
+            if self.actor.use_llm and torch.cuda.is_available():
+                torch.cuda.empty_cache()
 
     def _descriptor_text(self, smiles: str, target_name: Optional[str]) -> str:
         w = self.weight_vector

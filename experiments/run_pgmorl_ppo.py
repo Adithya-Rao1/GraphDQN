@@ -24,11 +24,13 @@ def run(target_name=DEFAULT_TARGET, seed=0, num_molecules=30, num_episodes=200,
         admet_weight=dqn_hyp.admet_weight, binding_weight=dqn_hyp.binding_weight,
         synthetic_weight=dqn_hyp.synthetic_weight, selectivity_weight=0.0,
         use_llm=False, llm_model_name=DEFAULT_LLM_MODEL_NAME, llm_torch_dtype=torch.bfloat16,
+        reward_batch_size=8, predictors_device=None,
         checkpoint_interval=50, run_id=None, use_wandb=False,
         checkpoint_root='./checkpoints/pgmorl_ppo', results_root='./experiments/results'):
     run_id = run_id or f"pgmorl_ppo_{target_name}_seed{seed}_{time.strftime('%Y%m%d-%H%M%S')}"
     torch.manual_seed(seed)
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    predictors_device = torch.device(predictors_device) if predictors_device else device
 
     target_seq = TARGETS[target_name]
     start_mols = sample_pilot_molecules(n=num_molecules, seed=seed)
@@ -36,15 +38,15 @@ def run(target_name=DEFAULT_TARGET, seed=0, num_molecules=30, num_episodes=200,
     catalog = build_edit_catalog()
     reward_config = RewardConfig(admet_weight=admet_weight, binding_weight=binding_weight, synthetic_weight=synthetic_weight, selectivity_weight=selectivity_weight,)
 
-    admet_model = ADMETModel(device)
-    binding_model = Plapt(device=str(device))
+    admet_model = ADMETModel(predictors_device)
+    binding_model = Plapt(device=str(predictors_device))
     sa_model = SyntheticAccessibility()
 
     agent = PGMORLAgent(
         catalog=catalog, reward_config=reward_config, target_seq=target_seq, device=device,
         admet_model=admet_model, binding_model=binding_model, sa_model=sa_model,
         hidden_dim=hidden_dim, use_llm=use_llm, llm_model_name=llm_model_name if use_llm else None,
-        llm_torch_dtype=llm_torch_dtype,
+        llm_torch_dtype=llm_torch_dtype, reward_batch_size=reward_batch_size,
         edit_count_mode="fixed",
         fixed_edit_count=fixed_edit_count, gamma=gamma, gae_lambda=gae_lambda,
         clip_eps=clip_eps, entropy_coef=entropy_coef, value_coef=value_coef, lr=lr,
@@ -142,6 +144,8 @@ if __name__ == "__main__":
     parser.add_argument("--use-llm", action="store_true",)
     parser.add_argument("--llm-model-name", default=DEFAULT_LLM_MODEL_NAME)
     parser.add_argument("--llm-dtype", default="bfloat16", choices=["bfloat16", "float16", "float32"],)
+    parser.add_argument("--reward-batch-size", type=int, default=8,)
+    parser.add_argument("--predictors-device", default=None, choices=[None, "cpu", "cuda"],)
     parser.add_argument("--checkpoint-interval", type=int, default=50)
     parser.add_argument("--run-id", default=None)
     parser.add_argument("--wandb", action="store_true")
@@ -158,6 +162,8 @@ if __name__ == "__main__":
         use_llm=args.use_llm,
         llm_model_name=args.llm_model_name,
         llm_torch_dtype=getattr(torch, args.llm_dtype),
+        reward_batch_size=args.reward_batch_size or None,
+        predictors_device=args.predictors_device,
         checkpoint_interval=args.checkpoint_interval,
         run_id=args.run_id,
         use_wandb=args.wandb,
