@@ -33,7 +33,7 @@ def render_trajectory_slideshow(api, batch_id: int, trajectories: list) -> None:
             st.rerun()
     with col2:
         st.markdown(
-            f'<div style="text-align:center" class="gdqn-meta">Rollout {state["traj_idx"] + 1} of {num_trajectories}</div>',
+            f'<div style="text-align:center" class="metis-meta">Rollout {state["traj_idx"] + 1} of {num_trajectories}</div>',
             unsafe_allow_html=True,
         )
 
@@ -52,7 +52,7 @@ def render_trajectory_slideshow(api, batch_id: int, trajectories: list) -> None:
             st.rerun()
     with col2:
         st.markdown(
-            f'<div style="text-align:center" class="gdqn-meta">Step {state["step_idx"] + 1} of {num_steps} '
+            f'<div style="text-align:center" class="metis-meta">Step {state["step_idx"] + 1} of {num_steps} '
             f'(0 = starting molecule)</div>',
             unsafe_allow_html=True,
         )
@@ -78,8 +78,8 @@ def render_trajectory_slideshow(api, batch_id: int, trajectories: list) -> None:
             key=f"viewer_traj_{batch_id}_{state['traj_idx']}_{state['step_idx']}",
         )
         st.markdown(f"""
-          <div class="gdqn-smiles">{step['smiles']}</div>
-          <table class="gdqn-metrics">
+          <div class="metis-smiles">{step['smiles']}</div>
+          <table class="metis-metrics">
             <tr><td>Reward</td><td>{_fmt(step['reward'])}</td></tr>
             <tr><td>ADMET score</td><td>{_fmt(step.get('admet_score'))}</td></tr>
             <tr><td>Binding (uM)</td><td>{_fmt(step.get('binding_uM'))}</td></tr>
@@ -93,9 +93,9 @@ def render_trajectory_slideshow(api, batch_id: int, trajectories: list) -> None:
             with st.expander(f"Macro-edit chain{mode_label}: {step.get('k_edits_used', len(step['applied_edits']))} edit(s) applied"):
                 for i, edit in enumerate(step["applied_edits"]):
                     st.markdown(
-                        f'<div class="gdqn-meta">{i + 1}. <b>{edit["edit_id"]}</b> '
+                        f'<div class="metis-meta">{i + 1}. <b>{edit["edit_id"]}</b> '
                         f'({edit["category"]}) — {edit["description"]}</div>'
-                        f'<div class="gdqn-smiles">→ {edit["resulting_smiles"]}</div>',
+                        f'<div class="metis-smiles">→ {edit["resulting_smiles"]}</div>',
                         unsafe_allow_html=True,
                     )
 

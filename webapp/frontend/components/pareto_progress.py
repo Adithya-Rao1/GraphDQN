@@ -41,10 +41,10 @@ def render_pareto_sweep_progress(api, sweep_id: int, allow_kill: bool = True) ->
         st.progress(min(current / total, 1.0), text=f"{status} — round {current}/{total}")
 
         if members:
-            st.markdown('<span class="gdqn-meta">Population members (live)</span>', unsafe_allow_html=True)
+            st.markdown('<span class="metis-meta">Population members (live)</span>', unsafe_allow_html=True)
             st.dataframe(_members_dataframe(members), use_container_width=True)
         else:
-            st.markdown('<span class="gdqn-meta">Initializing population…</span>', unsafe_allow_html=True)
+            st.markdown('<span class="metis-meta">Initializing population…</span>', unsafe_allow_html=True)
 
         if allow_kill:
             col1, col2 = st.columns(2)
@@ -72,7 +72,7 @@ def render_pareto_sweep_progress(api, sweep_id: int, allow_kill: bool = True) ->
             wc = result.get("wall_clock_seconds")
             st.metric("Wall clock", f"{wc / 60:.1f} min" if wc else "—")
         if members:
-            st.markdown('<span class="gdqn-meta">Each row is one trade-off point discovered by the sweep — '
+            st.markdown('<span class="metis-meta">Each row is one trade-off point discovered by the sweep — '
                         'its config is saved to your database (tagged as sweep-generated) and can be used to '
                         'generate candidates like any other config (see the Candidates page).</span>',
                         unsafe_allow_html=True)
@@ -97,7 +97,7 @@ def render_pareto_sweep_progress(api, sweep_id: int, allow_kill: bool = True) ->
                     ]), use_container_width=True)
                 else:
                     st.markdown(
-                        '<span class="gdqn-meta">No fine-tune cycles have run yet for this sweep '
+                        '<span class="metis-meta">No fine-tune cycles have run yet for this sweep '
                         '(needs cumulative_steps_since_finetune to cross llm_finetune_interval_steps).</span>',
                         unsafe_allow_html=True,
                     )

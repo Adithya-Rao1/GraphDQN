@@ -2,7 +2,7 @@ import streamlit as st
 
 from style import inject_theme
 
-st.set_page_config(page_title="GraphDQN", layout="wide")
+st.set_page_config(page_title="Metis", page_icon="🧬", layout="wide")
 inject_theme()
 
 if "token" not in st.session_state:
@@ -17,6 +17,9 @@ else:
     pages = [
         home,
         st.Page("pages/3_optimize.py", title="Optimize Molecules"),
+        st.Page("pages/7_molecular_generation.py", title="Molecular Generation"),
+        st.Page("pages/8_molecular_dynamics.py", title="Molecular Dynamics"),
+        st.Page("pages/9_property_prediction.py", title="Property Prediction"),
         st.Page("pages/4_database.py", title="My Database"),
         st.Page("pages/5_candidates.py", title="Candidates"),
         st.Page("pages/6_account.py", title="Account"),

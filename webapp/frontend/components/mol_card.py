@@ -32,19 +32,19 @@ def render_candidate_card(candidate: dict, api, allow_scoring: bool = True, allo
     finetune_line = ""
     if finetune_uses:
         run_ids = ", ".join(f"#{u['training_run_id']}" for u in finetune_uses)
-        finetune_line = f'<div class="gdqn-meta">Used in fine-tune run(s): {run_ids}</div>'
+        finetune_line = f'<div class="metis-meta">Used in fine-tune run(s): {run_ids}</div>'
 
     with st.container(border=True):
         render_3d_viewer(candidate.get("molblock_3d"), height=280, key=f"viewer_candidate_{candidate['id']}")
 
         st.markdown(f"""
-          <div class="gdqn-smiles">{candidate['smiles']}</div>
-          <div class="gdqn-meta">
+          <div class="metis-smiles">{candidate['smiles']}</div>
+          <div class="metis-meta">
             From {candidate.get('starting_smiles', '?')} &middot; target: {protein_line}<br>
             Config: {candidate.get('config_name', '?')} &middot; {provenance}
           </div>
           {finetune_line}
-          <table class="gdqn-metrics">
+          <table class="metis-metrics">
             <tr><td>Reward</td><td>{_fmt(candidate['reward'])}</td></tr>
             <tr><td>ADMET score</td><td>{_fmt(candidate.get('admet_score'))}</td></tr>
             <tr><td>Binding (uM)</td><td>{_fmt(candidate.get('binding_uM'))}</td></tr>

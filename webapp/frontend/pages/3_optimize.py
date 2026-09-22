@@ -102,7 +102,7 @@ selected_props = st.multiselect(
 
 admet_directions = {}
 if selected_props:
-    st.markdown('<span class="gdqn-meta">Direction for each selected property:</span>', unsafe_allow_html=True)
+    st.markdown('<span class="metis-meta">Direction for each selected property:</span>', unsafe_allow_html=True)
     prop_defaults = {p["name"]: p["default_direction"] for p in admet_props}
     dir_cols = st.columns(min(len(selected_props), 3))
     for i, prop in enumerate(selected_props):
@@ -119,7 +119,7 @@ tab_single, tab_sweep = st.tabs(["Train a single agent", "Run a Pareto sweep"])
 
 with tab_single:
     st.markdown(
-        '<span class="gdqn-meta">Tip: use ~10-20 episodes for a fast smoke-test run before committing to a full '
+        '<span class="metis-meta">Tip: use ~10-20 episodes for a fast smoke-test run before committing to a full '
         'training run (hundreds of episodes, each involving real ADMET/binding-affinity model inference, can take '
         'a while).</span>',
         unsafe_allow_html=True,
@@ -162,7 +162,7 @@ with tab_single:
 
 with tab_sweep:
     st.markdown(
-        '<span class="gdqn-meta">Trains a small population of agents, one per point near your objective weights '
+        '<span class="metis-meta">Trains a small population of agents, one per point near your objective weights '
         'above, to discover a Pareto-optimal trade-off front instead of a single agent — a research-grade '
         'PGMORL-style sweep (GINEConv + PPO over the macro-edit catalog, optionally fused with a local LLM, '
         'GP-based prediction-guided scheduling). This is substantially more compute than a single training run: '
@@ -192,7 +192,7 @@ with tab_sweep:
                                                help="Episodes used to measure each member's objective vector "
                                                     "after training, without further updating its policy.")
 
-    st.markdown('<span class="gdqn-meta">Edit-count mode (how many molecular edits per macro-action step)</span>',
+    st.markdown('<span class="metis-meta">Edit-count mode (how many molecular edits per macro-action step)</span>',
                 unsafe_allow_html=True)
     edit_count_mode = st.selectbox("Edit-count mode", ["fixed", "random", "learned"], key="edit_count_mode")
     fixed_edit_count, edit_count_range_min, edit_count_range_max, k_max = 1, None, None, None

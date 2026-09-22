@@ -4,7 +4,7 @@ from typing import Any, Optional
 import requests
 import streamlit as st
 
-API_BASE_URL = os.environ.get("GRAPHDQN_API_URL", "http://localhost:8000")
+API_BASE_URL = os.environ.get("METIS_API_URL", "http://localhost:8000")
 
 
 class ApiError(Exception):

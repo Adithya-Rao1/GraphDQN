@@ -39,7 +39,6 @@ def _render_dqn_flow():
     run_choice = st.selectbox("Trained run", list(run_options))
     selected_run_id = run_options[run_choice]
 
-    # ---- generate ----
     if st.session_state.get("active_batch_id"):
         batch = render_batch_progress(api, st.session_state.active_batch_id)
         if batch["status"] in ("completed", "failed"):
@@ -94,7 +93,7 @@ def _render_dqn_flow():
 
     st.subheader("Candidates")
     if not candidates:
-        st.markdown('<span class="gdqn-meta">No candidates generated yet.</span>', unsafe_allow_html=True)
+        st.markdown('<span class="metis-meta">No candidates generated yet.</span>', unsafe_allow_html=True)
         st.stop()
 
     selected_ids = []
@@ -124,7 +123,7 @@ def _render_dqn_flow():
         except ApiError as e:
             st.error(e.detail)
     if not selected_ids:
-        st.markdown('<span class="gdqn-meta">Score and select at least one candidate above to fine-tune.</span>',
+        st.markdown('<span class="metis-meta">Score and select at least one candidate above to fine-tune.</span>',
                     unsafe_allow_html=True)
 
 
@@ -154,7 +153,6 @@ def _render_pgmorl_flow():
     member_choice = st.selectbox("Population member", list(member_options), key="pgmorl_member_select")
     selected_member_config_id = member_options[member_choice]
 
-    # ---- generate ----
     if st.session_state.get("active_batch_id"):
         batch = render_batch_progress(api, st.session_state.active_batch_id)
         if batch["status"] in ("completed", "failed"):
@@ -213,7 +211,7 @@ def _render_pgmorl_flow():
 
     st.subheader("Candidates")
     if not candidates:
-        st.markdown('<span class="gdqn-meta">No candidates generated yet for this member.</span>',
+        st.markdown('<span class="metis-meta">No candidates generated yet for this member.</span>',
                     unsafe_allow_html=True)
         st.stop()
 

@@ -6,7 +6,7 @@ from webapp.backend.db import Base, engine
 from webapp.backend import models  # noqa: F401 -- registers ORM models on Base.metadata
 from webapp.backend.routers import auth, candidates, configs, generation, meta, molecules, pareto_sweep, proteins, runs
 
-app = FastAPI(title="GraphDQN Molecular Optimization API")
+app = FastAPI(title="Metis Molecular Optimization API")
 
 app.add_middleware(
     CORSMiddleware,

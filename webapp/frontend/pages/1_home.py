@@ -4,18 +4,22 @@ from style import inject_theme
 
 inject_theme()
 
-st.title("GraphDQN")
+st.title("Metis")
 st.markdown(
     """
-    <div class="gdqn-card">
-      <p>Optimize a molecule for ADMET properties, binding affinity, synthetic
-      accessibility, and selectivity using a reinforcement-learning agent
-      trained specifically on your target.</p>
-      <p class="gdqn-meta">
-        Upload a starting molecule and (optionally) a target protein &middot;
-        choose which properties to optimize and in which direction &middot;
-        train your own DQN agent &middot; generate and score optimized
-        candidates &middot; fine-tune the agent on what you liked.
+    <div class="metis-card">
+      <p>Metis is an AI drug-discovery platform bringing together molecular
+      optimization, generation, dynamics, and property prediction in one
+      place.</p>
+      <p class="metis-meta">
+        Optimize Molecules (below) is fully built today &mdash; it optimizes a
+        molecule for ADMET properties, binding affinity, synthetic
+        accessibility, and selectivity using a reinforcement-learning agent
+        trained specifically on your target: upload a starting molecule and
+        (optionally) a target protein &middot; choose which properties to
+        optimize and in which direction &middot; train your own agent &middot;
+        generate and score optimized candidates &middot; fine-tune the agent
+        on what you liked. The other tools in the sidebar are on the way.
       </p>
     </div>
     """,

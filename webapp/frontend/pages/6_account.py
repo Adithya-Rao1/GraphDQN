@@ -14,9 +14,9 @@ api = get_client()
 st.title("Account")
 me = api.me()
 st.markdown(f"""
-<div class="gdqn-card">
+<div class="metis-card">
   <div>Email: {me['email']}</div>
-  <div class="gdqn-meta">Member since {me['created_at']}</div>
+  <div class="metis-meta">Member since {me['created_at']}</div>
 </div>
 """, unsafe_allow_html=True)
 

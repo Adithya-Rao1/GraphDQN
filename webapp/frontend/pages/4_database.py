@@ -47,7 +47,7 @@ with tab_mol:
             except ApiError as e:
                 st.error(e.detail)
     else:
-        st.markdown('<span class="gdqn-meta">No molecules yet.</span>', unsafe_allow_html=True)
+        st.markdown('<span class="metis-meta">No molecules yet.</span>', unsafe_allow_html=True)
 
 with tab_prot:
     with st.form("add_protein"):
@@ -77,7 +77,7 @@ with tab_prot:
             except ApiError as e:
                 st.error(e.detail)
     else:
-        st.markdown('<span class="gdqn-meta">No proteins yet.</span>', unsafe_allow_html=True)
+        st.markdown('<span class="metis-meta">No proteins yet.</span>', unsafe_allow_html=True)
 
 with tab_cfg:
     configs = api.list_configs()
@@ -93,7 +93,7 @@ with tab_cfg:
             except ApiError as e:
                 st.error(e.detail)
     else:
-        st.markdown('<span class="gdqn-meta">No configs yet — create one on the Optimize Molecules page.</span>',
+        st.markdown('<span class="metis-meta">No configs yet — create one on the Optimize Molecules page.</span>',
                     unsafe_allow_html=True)
 
 with tab_runs:
@@ -103,11 +103,11 @@ with tab_runs:
                                   "seed", "num_episodes", "progress_current", "progress_total", "created_at"]]
         st.dataframe(df, use_container_width=True)
     else:
-        st.markdown('<span class="gdqn-meta">No training runs yet.</span>', unsafe_allow_html=True)
+        st.markdown('<span class="metis-meta">No training runs yet.</span>', unsafe_allow_html=True)
 
 with tab_candidates:
     st.markdown(
-        '<span class="gdqn-meta">Every candidate ever generated, with full provenance: which molecule it '
+        '<span class="metis-meta">Every candidate ever generated, with full provenance: which molecule it '
         'started from, which config/run produced it, which target (and off-target) protein it was optimized '
         'against, and which fine-tune run(s) it fed back into.</span>',
         unsafe_allow_html=True,
@@ -132,5 +132,5 @@ with tab_candidates:
             scored = df["user_rating"].notna().sum()
             st.caption(f"{scored} scored")
     else:
-        st.markdown('<span class="gdqn-meta">No candidates generated yet — visit the Candidates page after '
+        st.markdown('<span class="metis-meta">No candidates generated yet — visit the Candidates page after '
                     'training an agent.</span>', unsafe_allow_html=True)

@@ -29,29 +29,29 @@ _CSS = f"""
   h1, h2, h3, h4, h5, h6 {{ color: {TEXT}; font-weight: 600; }}
   p, label, span, div {{ color: {TEXT}; }}
 
-  .gdqn-card {{
+  .metis-card {{
     background: {CARD_BG};
     border: 1px solid {BORDER};
     border-radius: 10px;
     padding: 16px 20px;
     margin-bottom: 16px;
   }}
-  .gdqn-meta {{ color: {MUTED}; font-size: 13px; }}
-  .gdqn-smiles {{
+  .metis-meta {{ color: {MUTED}; font-size: 13px; }}
+  .metis-smiles {{
     font-family: monospace;
     font-size: 12px;
     color: {MUTED};
     word-break: break-all;
   }}
-  .gdqn-metrics {{ width: 100%; font-size: 13px; border-collapse: collapse; }}
-  .gdqn-metrics td {{ padding: 3px 0; }}
-  .gdqn-metrics td:first-child {{ color: {MUTED}; }}
-  .gdqn-metrics td:last-child {{
+  .metis-metrics {{ width: 100%; font-size: 13px; border-collapse: collapse; }}
+  .metis-metrics td {{ padding: 3px 0; }}
+  .metis-metrics td:first-child {{ color: {MUTED}; }}
+  .metis-metrics td:last-child {{
     text-align: right;
     font-variant-numeric: tabular-nums;
     color: {TEXT};
   }}
-  .gdqn-mol-img {{
+  .metis-mol-img {{
     display: block;
     width: 100%;
     max-width: 280px;
@@ -61,6 +61,18 @@ _CSS = f"""
     border: 1px solid {BORDER};
     background: {CARD_BG};
     padding: 8px;
+  }}
+  .metis-badge {{
+    display: inline-block;
+    background: {BORDER};
+    color: {MUTED};
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 999px;
+    margin-top: 8px;
   }}
 
   [data-testid="stButton"] > button {{
