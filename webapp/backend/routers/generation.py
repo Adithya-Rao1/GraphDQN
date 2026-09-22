@@ -129,8 +129,6 @@ def get_trajectories(batch_id: int, db: Session = Depends(get_db),
             TrajectoryStepOut(
                 step_index=step["step_index"],
                 smiles=step["smiles"],
-                image_b64=mol_image_base64(step["smiles"]),
-                molblock_3d=mol_to_molblock_3d(step["smiles"]),
                 reward=step["reward"],
                 admet_score=step.get("admet_score"),
                 binding_uM=step.get("binding_uM"),
@@ -144,6 +142,25 @@ def get_trajectories(batch_id: int, db: Session = Depends(get_db),
         ]
         out.append(TrajectoryOut(trajectory_index=traj_idx, steps=step_outs))
     return out
+
+
+@router.get("/api/generation-batches/{batch_id}/trajectories/{traj_idx}/steps/{step_idx}/render")
+def get_trajectory_step_render(batch_id: int, traj_idx: int, step_idx: int, db: Session = Depends(get_db),
+                                current_user: User = Depends(get_current_user)):
+    batch = db.get(GenerationBatch, batch_id)
+    if batch is None or batch.user_id != current_user.id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Generation batch not found")
+    if not batch.trajectories or traj_idx < 0 or traj_idx >= len(batch.trajectories):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Trajectory not found")
+    steps = batch.trajectories[traj_idx]
+    if step_idx < 0 or step_idx >= len(steps):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Step not found")
+
+    smiles = steps[step_idx]["smiles"]
+    return {
+        "image_b64": mol_image_base64(smiles),
+        "molblock_3d": mol_to_molblock_3d(smiles),
+    }
 
 
 @router.post("/api/generation-batches/{batch_id}/promote", response_model=List[CandidateOut])

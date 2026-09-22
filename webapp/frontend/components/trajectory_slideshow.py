@@ -58,6 +58,15 @@ def render_trajectory_slideshow(api, batch_id: int, trajectories: list) -> None:
         )
 
     step = steps[state["step_idx"]]
+
+    render_cache_key = f"traj_render_{batch_id}"
+    render_cache = st.session_state.setdefault(render_cache_key, {})
+    render_key = (state["traj_idx"], state["step_idx"])
+    if render_key not in render_cache:
+        with st.spinner("Rendering molecule..."):
+            render_cache[render_key] = api.get_trajectory_step_render(batch_id, state["traj_idx"], state["step_idx"])
+    render_data = render_cache[render_key]
+
     selectivity_row = (
         f'<tr><td>Selectivity</td><td>{_fmt(step.get("selectivity"))}</td></tr>'
         if step.get("selectivity") is not None else ""
@@ -65,7 +74,7 @@ def render_trajectory_slideshow(api, batch_id: int, trajectories: list) -> None:
 
     with st.container(border=True):
         render_3d_viewer(
-            step.get("molblock_3d"), height=320,
+            render_data.get("molblock_3d"), height=320,
             key=f"viewer_traj_{batch_id}_{state['traj_idx']}_{state['step_idx']}",
         )
         st.markdown(f"""

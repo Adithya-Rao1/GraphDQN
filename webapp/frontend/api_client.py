@@ -122,6 +122,9 @@ class ApiClient:
     def get_trajectories(self, batch_id: int) -> list:
         return self._request("GET", f"/api/generation-batches/{batch_id}/trajectories")
 
+    def get_trajectory_step_render(self, batch_id: int, traj_idx: int, step_idx: int) -> dict:
+        return self._request("GET", f"/api/generation-batches/{batch_id}/trajectories/{traj_idx}/steps/{step_idx}/render")
+
     def promote_steps(self, batch_id: int, selections: list) -> list:
         return self._request("POST", f"/api/generation-batches/{batch_id}/promote",
                               json={"selections": selections})
