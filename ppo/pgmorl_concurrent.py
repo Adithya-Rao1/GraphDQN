@@ -30,16 +30,16 @@ def train_member_one_round_guarded(
     rw_lock=None, use_cuda_stream: bool = True,
     cancel_event: Optional[threading.Event] = None,
     on_step_scored: Optional[Callable[[str, object], None]] = None,
-) -> None:
+) -> int:
     read_ctx = rw_lock.gen_rlock() if rw_lock is not None else nullcontext()
     stream = torch.cuda.Stream() if (use_cuda_stream and torch.cuda.is_available()) else None
     stream_ctx = torch.cuda.stream(stream) if stream is not None else nullcontext()
 
     with read_ctx, stream_ctx:
-        train_member_one_round(member, env_factory, episodes_per_round, max_steps, ppo_epochs,
-                                cancel_event=cancel_event, on_step_scored=on_step_scored)
+        real_macro_steps = train_member_one_round(member, env_factory, episodes_per_round, max_steps, ppo_epochs, cancel_event=cancel_event, on_step_scored=on_step_scored)
         if stream is not None:
             stream.synchronize()
+    return real_macro_steps
 
 
 def run_pareto_sweep_concurrent(
@@ -92,7 +92,7 @@ def run_pareto_sweep_concurrent(
     def _run_one_member(member: PopulationMember) -> None:
         objective_before = list(member.objective_vector)
 
-        train_member_one_round_guarded(
+        real_macro_steps = train_member_one_round_guarded(
             member, env_factory, episodes_per_round, max_steps, ppo_epochs,
             rw_lock=rw_lock, use_cuda_stream=use_cuda_streams, cancel_event=cancel_event,
             on_step_scored=on_step_scored,
@@ -109,6 +109,7 @@ def run_pareto_sweep_concurrent(
             weight_vector_used=member.weight_vector,
             training_steps_this_round=episodes_per_round,
             objective_vector_after=objective_after,
+            real_macro_steps_this_round=real_macro_steps,
         )
         with records_lock:
             records.append(record)

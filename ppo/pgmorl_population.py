@@ -72,8 +72,9 @@ def measure_objective_vector(agent: PGMORLAgent, env_factory: Callable[[], objec
 def train_member_one_round(member: PopulationMember, env_factory: Callable[[], object],
                              episodes_per_round: int, max_steps: int, ppo_epochs: int,
                              cancel_event: Optional[threading.Event] = None,
-                             on_step_scored: Optional[Callable[[str, object], None]] = None) -> None:
+                             on_step_scored: Optional[Callable[[str, object], None]] = None) -> int:
     step_cb = (lambda entry: on_step_scored(member.member_id, entry)) if on_step_scored is not None else None
+    real_macro_steps = 0
     for _ in range(episodes_per_round):
         if cancel_event is not None and cancel_event.is_set():
             raise SweepCancelled(f"Sweep cancelled mid-round for {member.member_id}")
@@ -84,8 +85,10 @@ def train_member_one_round(member: PopulationMember, env_factory: Callable[[], o
             entry = member.agent.act(env)
             if entry.done:
                 break
+        real_macro_steps += len(member.agent.memory)
         member.agent.update(ppo_epochs=ppo_epochs, on_step_scored=step_cb)
     member.total_training_steps += episodes_per_round
+    return real_macro_steps
 
 
 def run_pareto_sweep_sequential(
@@ -151,8 +154,7 @@ def run_pareto_sweep_sequential(
             member = members[int(idx)]
             objective_before = list(member.objective_vector)
 
-            train_member_one_round(member, env_factory, episodes_per_round, max_steps, ppo_epochs,
-                                    cancel_event=cancel_event, on_step_scored=on_step_scored)
+            real_macro_steps = train_member_one_round(member, env_factory, episodes_per_round, max_steps, ppo_epochs, cancel_event=cancel_event, on_step_scored=on_step_scored)
 
             objective_after = measure_objective_vector(
                 member.agent, env_factory, eval_episodes_per_round, max_steps, cancel_event=cancel_event,
@@ -165,6 +167,7 @@ def run_pareto_sweep_sequential(
                 weight_vector_used=member.weight_vector,
                 training_steps_this_round=episodes_per_round,
                 objective_vector_after=objective_after,
+                real_macro_steps_this_round=real_macro_steps,
             ))
 
         if use_predictor:

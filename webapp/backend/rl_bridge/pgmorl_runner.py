@@ -121,10 +121,11 @@ def run_pareto_sweep(
                 "weight_vector_used": r.weight_vector_used,
                 "training_steps_this_round": r.training_steps_this_round,
                 "objective_vector_after": r.objective_vector_after,
+                "real_macro_steps_this_round": r.real_macro_steps_this_round,
             }
             for r in new_records
         ]
-        round_steps = sum(r["training_steps_this_round"] for r in new_records_out)
+        round_steps = sum(r["real_macro_steps_this_round"] for r in new_records_out)
         finetune_batch = progress_cb(round_idx + 1, num_rounds, snapshot, new_records_out, round_steps)
 
         if finetune_batch and use_llm and shared_llm_backbone is not None:

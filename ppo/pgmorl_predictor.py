@@ -18,6 +18,7 @@ class PerformanceRecord:
     weight_vector_used: List[float]
     training_steps_this_round: int
     objective_vector_after: List[float]
+    real_macro_steps_this_round: int = 0
 
 
 class PerformancePredictor:
