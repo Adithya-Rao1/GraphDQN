@@ -124,7 +124,8 @@ def apply_edit(session_id: int, payload: ApplyEditRequest, db: Session = Depends
                              "This edit could not be applied to the current molecule -- try a different one")
 
     result_mol = Chem.MolFromSmiles(result_smiles)
-    if result_mol is None or find_unsupported_elements(result_mol):
+    if (result_mol is None or find_unsupported_elements(result_mol)
+            or len(Chem.GetMolFrags(result_mol, asMols=False)) > 1):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
                              "This edit produced an invalid or unsupported molecule -- try a different one")
 

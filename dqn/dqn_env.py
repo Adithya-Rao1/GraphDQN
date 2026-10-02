@@ -115,7 +115,11 @@ def get_all_actions(state):
         if add_sites:
             actions.add(modify_fg.add_functional_group(mol, fg, add_sites[0]))
 
-    candidates = {smiles for smiles in actions if smiles and Chem.MolFromSmiles(smiles) is not None}
+    def _is_single_valid_mol(smiles):
+        mol = Chem.MolFromSmiles(smiles)
+        return mol is not None and len(Chem.GetMolFrags(mol, asMols=False)) == 1
+
+    candidates = {smiles for smiles in actions if smiles and _is_single_valid_mol(smiles)}
 
     if not candidates:
         return {state}

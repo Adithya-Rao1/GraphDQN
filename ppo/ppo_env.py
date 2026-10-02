@@ -140,7 +140,7 @@ class MoleculeEnv(gym.Env):
             actions.add(modify_func.modify_functional_group(mol, fg1, fg2))
 
         candidates = [Chem.MolFromSmiles(smi) for smi in actions if smi]
-        candidates = [mol for mol in candidates if mol is not None]
+        candidates = [mol for mol in candidates if mol is not None and len(Chem.GetMolFrags(mol, asMols=False)) == 1]
 
         return self._pad_actions(candidates if candidates else [mol])
 

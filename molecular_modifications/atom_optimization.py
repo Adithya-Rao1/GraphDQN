@@ -129,6 +129,13 @@ class ModifyAtom:
 
             Chem.SanitizeMol(rwmol)
 
+            if len(Chem.GetMolFrags(rwmol, asMols=False)) > 1:
+                if self.log:
+                    self.logger.warning(
+                        f"Removing atom {atom_idx} would disconnect the molecule; rejecting."
+                    )
+                return None
+
             Chem.AssignStereochemistry(rwmol, cleanIt=True, force=True)
 
             if self.log:

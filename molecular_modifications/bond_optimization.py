@@ -290,6 +290,13 @@ class ModifyBond:
             candidate.UpdatePropertyCache(strict=False)
             Chem.SanitizeMol(candidate)
 
+            if len(Chem.GetMolFrags(candidate, asMols=False)) > 1:
+                if self.log:
+                    self.logger.warning(
+                        f"Removing bond {bond_idx} would disconnect the molecule; rejecting."
+                    )
+                return None
+
             return candidate
 
         except Exception as e:

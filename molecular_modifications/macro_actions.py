@@ -182,6 +182,9 @@ def compose_macro_action(
         if find_unsupported_elements(result_mol):
             break
 
+        if len(Chem.GetMolFrags(result_mol, asMols=False)) > 1:
+            break
+
         current_smiles = result_smiles
         applied.append(edit_id)
         intermediates.append(current_smiles)
