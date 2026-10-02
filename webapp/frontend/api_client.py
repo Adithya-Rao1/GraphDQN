@@ -158,6 +158,35 @@ class ApiClient:
     def cancel_pareto_sweep(self, sweep_id: int, discard: bool = False) -> dict:
         return self._request("POST", f"/api/pareto-sweeps/{sweep_id}/cancel", params={"discard": discard})
 
+    def create_manual_session(self, starting_molecule_id: int, target_protein_id: int,
+                               off_target_protein_id: Optional[int] = None) -> dict:
+        return self._request("POST", "/api/manual-sessions", json={
+            "starting_molecule_id": starting_molecule_id,
+            "target_protein_id": target_protein_id,
+            "off_target_protein_id": off_target_protein_id,
+        })
+
+    def list_manual_sessions(self) -> list:
+        return self._request("GET", "/api/manual-sessions")
+
+    def get_manual_session(self, session_id: int) -> dict:
+        return self._request("GET", f"/api/manual-sessions/{session_id}")
+
+    def get_manual_edit_catalog(self, session_id: int) -> list:
+        return self._request("GET", f"/api/manual-sessions/{session_id}/catalog")
+
+    def get_manual_session_current(self, session_id: int) -> dict:
+        return self._request("GET", f"/api/manual-sessions/{session_id}/current")
+
+    def apply_manual_edit(self, session_id: int, edit_id: str) -> dict:
+        return self._request("POST", f"/api/manual-sessions/{session_id}/apply-edit", json={"edit_id": edit_id})
+
+    def undo_manual_edit(self, session_id: int) -> dict:
+        return self._request("POST", f"/api/manual-sessions/{session_id}/undo")
+
+    def finish_manual_session(self, session_id: int) -> dict:
+        return self._request("POST", f"/api/manual-sessions/{session_id}/finish")
+
 
 @st.cache_resource
 def get_client() -> ApiClient:

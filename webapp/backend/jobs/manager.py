@@ -36,15 +36,13 @@ class JobManager:
         cancel_event = self._new_cancel_event(-batch_id)  # separate id space from training runs
         self._executor.submit(run_generation_job, batch_id, cancel_event)
 
+    def submit_manual_edit_finish(self, session_id: int) -> None:
+        from webapp.backend.jobs.manual_edit import run_manual_edit_finish_job
+
+        self._executor.submit(run_manual_edit_finish_job, session_id)
+
     @staticmethod
     def _pareto_sweep_key(sweep_id: int) -> int:
-        # Separate id space from training runs (positive keys) and
-        # generation batches (-batch_id) -- a training run, a generation
-        # batch, and a sweep could otherwise coincidentally share a numeric
-        # id. Encapsulated here (not leaked to callers) so cancel/discard
-        # for sweeps always goes through cancel_pareto_sweep/
-        # should_discard_pareto_sweep below rather than the raw run_id-keyed
-        # cancel()/should_discard() methods.
         return -1_000_000 - sweep_id
 
     def submit_pareto_sweep(self, sweep_id: int) -> None:

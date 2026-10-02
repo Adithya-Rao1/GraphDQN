@@ -289,6 +289,43 @@ class FineTuneRequest(BaseModel):
     num_extra_episodes: int = Field(default=50, ge=1)
 
 
+class EditCatalogEntryOut(BaseModel):
+    id: str
+    category: str
+    description: str
+
+
+class ManualEditSessionCreate(BaseModel):
+    starting_molecule_id: int
+    target_protein_id: int
+    off_target_protein_id: Optional[int] = None
+
+
+class ApplyEditRequest(BaseModel):
+    edit_id: str
+
+
+class ApplyEditResponse(BaseModel):
+    smiles: str
+    image_b64: Optional[str] = None
+    molblock_3d: Optional[str] = None
+
+
+class ManualEditSessionOut(BaseModel):
+    id: int
+    starting_molecule_id: int
+    target_protein_id: int
+    off_target_protein_id: Optional[int] = None
+    status: str
+    pending_edits: List[dict] = Field(default_factory=list)
+    result_summary_json: Optional[dict] = None
+    error_message: Optional[str] = None
+    created_at: datetime
+    finished_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
+
+
 class ParetoSweepCreate(BaseModel):
     base_config_id: int
     seed: int = 0

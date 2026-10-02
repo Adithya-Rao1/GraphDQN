@@ -174,6 +174,7 @@ class EditOutcomeLog(Base):
     training_run_id = Column(Integer, ForeignKey("training_runs.id"), nullable=True, index=True)
     pareto_sweep_id = Column(Integer, ForeignKey("pareto_sweep_runs.id"), nullable=True, index=True)
     population_member_config_id = Column(Integer, ForeignKey("optimization_configs.id"), nullable=True)
+    manual_edit_session_id = Column(Integer, ForeignKey("manual_edit_sessions.id"), nullable=True, index=True)
 
     step_index = Column(Integer, nullable=False)
     parent_smiles = Column(String, nullable=False)
@@ -193,6 +194,28 @@ class EditOutcomeLog(Base):
     consumed_by_finetune = Column(Boolean, nullable=False, default=False)
 
     created_at = Column(DateTime, server_default=func.now())
+
+
+class ManualEditSession(Base):
+    __tablename__ = "manual_edit_sessions"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    starting_molecule_id = Column(Integer, ForeignKey("starting_molecules.id"), nullable=False)
+    target_protein_id = Column(Integer, ForeignKey("proteins.id"), nullable=False)
+    off_target_protein_id = Column(Integer, ForeignKey("proteins.id"), nullable=True)
+
+    status = Column(String, nullable=False, default="in_progress")  # in_progress|scoring|completed|failed
+    pending_edits = Column(JSON, nullable=False, default=list)
+    result_summary_json = Column(JSON, nullable=True)
+    error_message = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, server_default=func.now())
+    finished_at = Column(DateTime, nullable=True)
+
+    starting_molecule = relationship("StartingMolecule")
+    target_protein = relationship("Protein", foreign_keys=[target_protein_id])
+    off_target_protein = relationship("Protein", foreign_keys=[off_target_protein_id])
 
 
 class ParetoSweepRun(Base):
