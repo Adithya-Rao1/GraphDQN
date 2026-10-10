@@ -53,15 +53,6 @@ class ModifyBioisosteres:
 
     @staticmethod
     def _remove_atoms_preserving_anchors(em: Chem.EditableMol, remove_indices, anchor_indices):
-        """Remove remove_indices from an EditableMol and return each of
-        anchor_indices' index after removal.
-
-        RWMol/EditableMol.RemoveAtom shifts every atom with a higher index
-        down by one; any index captured before a removal (e.g. a SMARTS match
-        atom we intend to keep as an attachment point) is stale afterward
-        unless corrected for how many removed atoms sat below it. Removing in
-        descending order keeps not-yet-removed indices valid throughout.
-        """
         remove_indices = sorted(set(remove_indices), reverse=True)
         for idx in remove_indices:
             em.RemoveAtom(idx)
@@ -309,7 +300,14 @@ class ModifyBioisosteres:
                 self.logger.error(f"Failed to replace amide: {str(e)}")
             return None
 
-    def apply_modification(self, mol: Chem.Mol, chosen_fg_type: str, chosen_replacement: Optional[str] = None) -> Optional[str]:
+    def get_valid_bioisostere_matches(self, mol: Chem.Mol, fg_type: str) -> List[Tuple[int, ...]]:
+        fg_matches = self.identify_functional_groups(mol)
+        if fg_type not in (set(self.acidic_bioisosteres) | set(self.basic_bioisosteres)):
+            return []
+        return list(fg_matches.get(fg_type, []))
+
+    def apply_modification(self, mol: Chem.Mol, chosen_fg_type: str, chosen_replacement: Optional[str] = None,
+                            match_index: Optional[int] = None) -> Optional[str]:
         fg_matches = self.identify_functional_groups(mol)
 
         valid_modifications = []
@@ -323,14 +321,13 @@ class ModifyBioisosteres:
                 self.logger.error("No valid modifications found.")
             return None
 
-        # TODO: BE ABLE TO CHOOSE WHICH FG_TYPE
-        # TODO: BE ABLE TO CHOOSE WHICH REPLACEMENT FOR EACH FG_TYPE
         fg_type, match = None, None
         if chosen_fg_type:
-            for fg, match_atoms in valid_modifications:
-                if fg == chosen_fg_type:
-                    fg_type, match = fg, match_atoms
-                    break
+            matches_for_type = [m for fg, m in valid_modifications if fg == chosen_fg_type]
+            if matches_for_type:
+                idx = match_index if match_index is not None else 0
+                if 0 <= idx < len(matches_for_type):
+                    fg_type, match = chosen_fg_type, matches_for_type[idx]
 
         if not fg_type:
             if self.log:

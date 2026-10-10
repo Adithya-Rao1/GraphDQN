@@ -13,9 +13,18 @@ if not st.session_state.get("token"):
 
 api = get_client()
 
+CATEGORY_LABELS = {
+    "atom": "Atom",
+    "bond": "Bond",
+    "functional_group": "Functional Group",
+    "bioisostere": "Bioisostere",
+}
+
 st.title("Manual Edit Studio")
 st.markdown(
-    '<div class="metis-card"><p>Manually apply the same catalog of molecular edits the RL agent uses.</p></div>',
+    '<div class="metis-card"><p>Pick the exact atom, bond, functional-group, or bioisostere site for each '
+    'edit &mdash; every option shown is already chemically valid (deterministic filters, no ML). Preview the '
+    'change before committing it.</p></div>',
     unsafe_allow_html=True,
 )
 
@@ -62,6 +71,8 @@ if session_id is None:
     if st.button("Start session", type="primary"):
         session = api.create_manual_session(starting_molecule_id, target_protein_id, off_target_protein_id)
         st.session_state.active_manual_session_id = session["id"]
+        st.session_state.manual_active_edit_id = None
+        st.session_state.manual_preview = None
         st.rerun()
     st.stop()
 
@@ -90,28 +101,85 @@ with col2:
 st.markdown(f'<div class="metis-smiles">{current["smiles"]}</div>', unsafe_allow_html=True)
 st.caption(f"{len(session['pending_edits'])} edit(s) applied so far")
 
+st.divider()
 catalog = api.get_manual_edit_catalog(session_id)
-categories = sorted({op["category"] for op in catalog})
-category = st.selectbox("Edit category", categories)
+
+category_label = st.radio("Edit category", list(CATEGORY_LABELS.values()), horizontal=True, key="manual_category")
+category = next(k for k, v in CATEGORY_LABELS.items() if v == category_label)
+
 category_ops = [op for op in catalog if op["category"] == category]
 op_labels = {op["description"]: op["id"] for op in category_ops}
-op_choice = st.selectbox("Edit", list(op_labels))
+op_choice = st.selectbox("Edit operation", list(op_labels), key=f"manual_op_{category}")
+edit_id = op_labels[op_choice]
 
-col1, col2 = st.columns(2)
-with col1:
-    if st.button("Apply edit", type="primary"):
-        try:
-            api.apply_manual_edit(session_id, op_labels[op_choice])
+if st.session_state.get("manual_active_edit_id") != edit_id:
+    st.session_state.manual_active_edit_id = edit_id
+    st.session_state.manual_preview = None
+
+candidates = api.get_manual_edit_candidates(session_id, edit_id)
+
+if not candidates:
+    st.info("No chemically valid sites for this edit on the current molecule -- pick a different edit.")
+else:
+    groups = {}
+    for cand in candidates:
+        groups.setdefault(cand["group_label"], []).append(cand)
+
+    st.caption(f"{len(candidates)} valid site(s), grouped below. Pick one to preview the change.")
+    for group_label, group_candidates in groups.items():
+        with st.expander(f"{group_label} ({len(group_candidates)})"):
+            cols = st.columns(3)
+            for i, cand in enumerate(group_candidates):
+                with cols[i % 3]:
+                    if cand.get("image_b64"):
+                        st.image(f"data:image/png;base64,{cand['image_b64']}", use_container_width=True)
+                    st.caption(cand["label"])
+                    btn_key = f"preview_btn_{edit_id}_{group_label}_{i}"
+                    if st.button("Preview this", key=btn_key):
+                        try:
+                            preview_response = api.preview_manual_edit(session_id, edit_id, cand["site_key"])
+                            st.session_state.manual_preview = preview_response
+                            st.rerun()
+                        except ApiError as e:
+                            st.error(e.detail)
+
+preview = st.session_state.get("manual_preview")
+if preview:
+    st.divider()
+    st.subheader("Preview this edit")
+    st.caption(preview["description"])
+    pcol1, pcol2 = st.columns(2)
+    with pcol1:
+        st.markdown("**Before**")
+        if preview.get("pre_image_b64"):
+            st.image(f"data:image/png;base64,{preview['pre_image_b64']}", use_container_width=True)
+    with pcol2:
+        st.markdown("**After**")
+        if preview.get("post_image_b64"):
+            st.image(f"data:image/png;base64,{preview['post_image_b64']}", use_container_width=True)
+
+    ccol1, ccol2 = st.columns(2)
+    with ccol1:
+        if st.button("Confirm this edit", type="primary", key="manual_confirm_edit"):
+            try:
+                api.apply_manual_edit(session_id, preview["edit_id"], preview["site_key"])
+                st.session_state.manual_preview = None
+                st.rerun()
+            except ApiError as e:
+                st.error(e.detail)
+    with ccol2:
+        if st.button("Choose a different site", key="manual_cancel_preview"):
+            st.session_state.manual_preview = None
             st.rerun()
-        except ApiError as e:
-            st.error(e.detail)
-with col2:
-    if st.button("Undo last edit", disabled=not session["pending_edits"]):
-        try:
-            api.undo_manual_edit(session_id)
-            st.rerun()
-        except ApiError as e:
-            st.error(e.detail)
+
+st.divider()
+if st.button("Undo last edit", disabled=not session["pending_edits"]):
+    try:
+        api.undo_manual_edit(session_id)
+        st.session_state.manual_preview = None
+        st.rerun()
+    except ApiError as e:
+        st.error(e.detail)
 
 st.divider()
 if st.button("Finish session", type="primary", disabled=not session["pending_edits"]):

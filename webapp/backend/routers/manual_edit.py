@@ -1,22 +1,26 @@
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from rdkit import Chem
 from sqlalchemy.orm import Session
 
 from molecular_modifications.chemistry_constants import find_unsupported_elements
 from molecular_modifications.macro_actions import build_edit_catalog
+from molecular_modifications.site_selection import apply_with_highlights
 from webapp.backend.db import get_db
 from webapp.backend.deps import get_current_user
 from webapp.backend.jobs.manager import job_manager
-from webapp.backend.mol_render import mol_image_base64, mol_to_molblock_3d
+from webapp.backend.mol_render import bond_indices_for_atoms, mol_image_base64, mol_to_molblock_3d
 from webapp.backend.models import ManualEditSession, Protein, StartingMolecule, User
 from webapp.backend.schemas import (
     ApplyEditRequest,
     ApplyEditResponse,
     EditCatalogEntryOut,
+    EditPreviewRequest,
+    EditPreviewResponse,
     ManualEditSessionCreate,
     ManualEditSessionOut,
+    SiteCandidateOut,
 )
 
 router = APIRouter(prefix="/api/manual-sessions", tags=["manual_edit"])
@@ -37,6 +41,19 @@ def _current_head_smiles(session: ManualEditSession, db: Session) -> str:
         return session.pending_edits[-1]["resulting_smiles"]
     molecule = db.get(StartingMolecule, session.starting_molecule_id)
     return molecule.canonical_smiles
+
+
+def _get_edit_op(edit_id: str):
+    edit_op = CATALOG_BY_ID.get(edit_id)
+    if edit_op is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Unknown edit id: {edit_id!r}")
+    return edit_op
+
+
+def _highlight_bonds_for(smiles: str, highlight_atoms: list) -> list:
+    if len(highlight_atoms) != 2:
+        return []
+    return bond_indices_for_atoms(smiles, [highlight_atoms])
 
 
 @router.post("", response_model=ManualEditSessionOut)
@@ -89,6 +106,82 @@ def get_catalog(session_id: int, db: Session = Depends(get_db),
     return [EditCatalogEntryOut(id=op.id, category=op.category, description=op.description) for op in CATALOG]
 
 
+@router.get("/{session_id}/edit-candidates", response_model=List[SiteCandidateOut])
+def get_edit_candidates(session_id: int, edit_id: str = Query(...), db: Session = Depends(get_db),
+                         current_user: User = Depends(get_current_user)):
+    session = _get_owned_session(session_id, db, current_user)
+    edit_op = _get_edit_op(edit_id)
+
+    head_smiles = _current_head_smiles(session, db)
+    mol = Chem.MolFromSmiles(head_smiles)
+    if mol is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Current molecule state is invalid")
+
+    out = []
+    for candidate in edit_op.enumerate_sites(mol):
+        out.append(SiteCandidateOut(
+            site_key=candidate.site_key,
+            group_label=candidate.group_label,
+            label=candidate.label,
+            image_b64=mol_image_base64(
+                head_smiles,
+                highlight_atoms=candidate.pre_highlight_atoms,
+                highlight_bonds=_highlight_bonds_for(head_smiles, candidate.pre_highlight_atoms),
+            ),
+        ))
+    return out
+
+
+@router.post("/{session_id}/preview-edit", response_model=EditPreviewResponse)
+def preview_edit(session_id: int, payload: EditPreviewRequest, db: Session = Depends(get_db),
+                  current_user: User = Depends(get_current_user)):
+    session = _get_owned_session(session_id, db, current_user)
+    if session.status != "in_progress":
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                             f"Session is {session.status!r}, no further edits can be applied")
+
+    edit_op = _get_edit_op(payload.edit_id)
+
+    head_smiles = _current_head_smiles(session, db)
+    mol = Chem.MolFromSmiles(head_smiles)
+    if mol is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Current molecule state is invalid")
+
+    matching = next((c for c in edit_op.enumerate_sites(mol) if c.site_key == payload.site_key), None)
+    if matching is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                             "This site is no longer valid for the current molecule -- pick a different one")
+
+    result = apply_with_highlights(edit_op.apply, mol, matching.pre_highlight_atoms, site=payload.site_key)
+    if result is None:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                             "This edit could not be applied to the current molecule -- try a different one")
+
+    result_mol = Chem.MolFromSmiles(result.resulting_smiles)
+    if (result_mol is None or find_unsupported_elements(result_mol)
+            or len(Chem.GetMolFrags(result_mol, asMols=False)) > 1):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                             "This edit produced an invalid or unsupported molecule -- try a different one")
+
+    return EditPreviewResponse(
+        edit_id=edit_op.id,
+        site_key=payload.site_key,
+        pre_image_b64=mol_image_base64(
+            head_smiles,
+            highlight_atoms=matching.pre_highlight_atoms,
+            highlight_bonds=_highlight_bonds_for(head_smiles, matching.pre_highlight_atoms),
+        ),
+        post_image_b64=mol_image_base64(
+            result.resulting_smiles,
+            highlight_atoms=result.post_highlight_atoms,
+            highlight_bonds=_highlight_bonds_for(result.resulting_smiles, result.post_highlight_atoms),
+        ),
+        pre_smiles=head_smiles,
+        resulting_smiles=result.resulting_smiles,
+        description=edit_op.description,
+    )
+
+
 @router.get("/{session_id}/current", response_model=ApplyEditResponse)
 def get_current_state(session_id: int, db: Session = Depends(get_db),
                         current_user: User = Depends(get_current_user)):
@@ -109,16 +202,19 @@ def apply_edit(session_id: int, payload: ApplyEditRequest, db: Session = Depends
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
                              f"Session is {session.status!r}, no further edits can be applied")
 
-    edit_op = CATALOG_BY_ID.get(payload.edit_id)
-    if edit_op is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Unknown edit id: {payload.edit_id!r}")
+    edit_op = _get_edit_op(payload.edit_id)
 
     head_smiles = _current_head_smiles(session, db)
     mol = Chem.MolFromSmiles(head_smiles)
     if mol is None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Current molecule state is invalid")
 
-    result_smiles = edit_op.apply(mol)
+    if payload.site_key is not None:
+        if not any(c.site_key == payload.site_key for c in edit_op.enumerate_sites(mol)):
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                 "This site is no longer valid for the current molecule -- pick a different one")
+
+    result_smiles = edit_op.apply(mol, payload.site_key)
     if not result_smiles:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
                              "This edit could not be applied to the current molecule -- try a different one")
@@ -135,6 +231,7 @@ def apply_edit(session_id: int, payload: ApplyEditRequest, db: Session = Depends
         "description": edit_op.description,
         "pre_smiles": head_smiles,
         "resulting_smiles": result_smiles,
+        "site_key": payload.site_key,
     }]
     db.commit()
 

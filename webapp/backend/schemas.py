@@ -303,12 +303,35 @@ class ManualEditSessionCreate(BaseModel):
 
 class ApplyEditRequest(BaseModel):
     edit_id: str
+    site_key: Optional[dict] = None
 
 
 class ApplyEditResponse(BaseModel):
     smiles: str
     image_b64: Optional[str] = None
     molblock_3d: Optional[str] = None
+
+
+class SiteCandidateOut(BaseModel):
+    site_key: dict
+    group_label: str
+    label: str
+    image_b64: Optional[str] = None
+
+
+class EditPreviewRequest(BaseModel):
+    edit_id: str
+    site_key: dict
+
+
+class EditPreviewResponse(BaseModel):
+    edit_id: str
+    site_key: dict
+    pre_image_b64: Optional[str] = None
+    post_image_b64: Optional[str] = None
+    pre_smiles: str
+    resulting_smiles: str
+    description: str
 
 
 class ManualEditSessionOut(BaseModel):
@@ -357,8 +380,6 @@ class ParetoSweepCreate(BaseModel):
         return v
 
     def edit_count_config_valid(self) -> Optional[str]:
-        """Returns an error message if the mode-specific fields are
-        inconsistent with edit_count_mode, else None."""
         if self.edit_count_mode == "random":
             if self.edit_count_range_min is None or self.edit_count_range_max is None:
                 return "edit_count_range_min/max are required when edit_count_mode is 'random'"

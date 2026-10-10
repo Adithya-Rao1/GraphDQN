@@ -11,10 +11,6 @@ from webapp.backend.models import EditOutcomeLog, ManualEditSession, StartingMol
 
 
 def _before_after_summary(results: list) -> dict:
-    """results: compute_reward_batch's raw output over the full sequence
-    (index 0 = starting molecule, before any edits; index -1 = after the
-    last edit) -- NOT the per-edit EditOutcomeLog rows, which only cover
-    results[1:]."""
     first, last = results[0], results[-1]
     return {
         "reward_before": first["reward"], "reward_after": last["reward"],
@@ -59,6 +55,7 @@ def run_manual_edit_finish_job(session_id: int) -> None:
                 k_edits_used=1,
                 edit_count_mode="manual",
                 resulting_smiles=sequence[i + 1],
+                site_key=edit.get("site_key"),
                 admet_score=result["admet"],
                 binding_uM=result["binding_uM"],
                 sa_score=result["sa_score"],

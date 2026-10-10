@@ -175,11 +175,20 @@ class ApiClient:
     def get_manual_edit_catalog(self, session_id: int) -> list:
         return self._request("GET", f"/api/manual-sessions/{session_id}/catalog")
 
+    def get_manual_edit_candidates(self, session_id: int, edit_id: str) -> list:
+        return self._request("GET", f"/api/manual-sessions/{session_id}/edit-candidates",
+                              params={"edit_id": edit_id})
+
+    def preview_manual_edit(self, session_id: int, edit_id: str, site_key: dict) -> dict:
+        return self._request("POST", f"/api/manual-sessions/{session_id}/preview-edit",
+                              json={"edit_id": edit_id, "site_key": site_key})
+
     def get_manual_session_current(self, session_id: int) -> dict:
         return self._request("GET", f"/api/manual-sessions/{session_id}/current")
 
-    def apply_manual_edit(self, session_id: int, edit_id: str) -> dict:
-        return self._request("POST", f"/api/manual-sessions/{session_id}/apply-edit", json={"edit_id": edit_id})
+    def apply_manual_edit(self, session_id: int, edit_id: str, site_key: Optional[dict] = None) -> dict:
+        return self._request("POST", f"/api/manual-sessions/{session_id}/apply-edit",
+                              json={"edit_id": edit_id, "site_key": site_key})
 
     def undo_manual_edit(self, session_id: int) -> dict:
         return self._request("POST", f"/api/manual-sessions/{session_id}/undo")

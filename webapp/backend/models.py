@@ -183,6 +183,7 @@ class EditOutcomeLog(Base):
     k_edits_used = Column(Integer, nullable=False)
     edit_count_mode = Column(String, nullable=False)  # "fixed" | "random" | "learned"
     resulting_smiles = Column(String, nullable=False)
+    site_key = Column(JSON, nullable=True)  # chemist-chosen explicit site, manual sessions only
 
     admet_score = Column(Float, nullable=True)
     binding_uM = Column(Float, nullable=True)

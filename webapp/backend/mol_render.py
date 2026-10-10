@@ -1,5 +1,5 @@
 import base64
-from typing import Optional, Sequence
+from typing import List, Optional, Sequence
 
 from rdkit import Chem
 from rdkit.Chem import AllChem
@@ -28,6 +28,7 @@ def _hex_to_rgba(hex_color: str, alpha: float = 1.0):
 def mol_image_base64(
     smiles: str,
     highlight_atoms: Optional[Sequence[int]] = None,
+    highlight_bonds: Optional[Sequence[int]] = None,
     size: tuple = (300, 300),
 ) -> Optional[str]:
     mol = Chem.MolFromSmiles(smiles)
@@ -43,9 +44,27 @@ def mol_image_base64(
     palette.update({num: _hex_to_rgba(color) for num, color in _HETERO_COLORS.items()})
     opts.setAtomPalette(palette)
 
-    rdMolDraw2D.PrepareAndDrawMolecule(drawer, mol, highlightAtoms=list(highlight_atoms or []))
+    rdMolDraw2D.PrepareAndDrawMolecule(
+        drawer, mol,
+        highlightAtoms=list(highlight_atoms or []),
+        highlightBonds=list(highlight_bonds or []),
+    )
     drawer.FinishDrawing()
     return base64.b64encode(drawer.GetDrawingText()).decode("ascii")
+
+
+def bond_indices_for_atoms(smiles: str, atom_idx_pairs: Sequence[Sequence[int]]) -> List[int]:
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        return []
+    bond_indices = []
+    for pair in atom_idx_pairs:
+        if len(pair) != 2:
+            continue
+        bond = mol.GetBondBetweenAtoms(pair[0], pair[1])
+        if bond is not None:
+            bond_indices.append(bond.GetIdx())
+    return bond_indices
 
 
 def mol_to_molblock_3d(smiles: str) -> Optional[str]:

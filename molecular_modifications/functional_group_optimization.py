@@ -171,6 +171,21 @@ class ModifyFunctionalGroup:
 
         return attachment_sites
 
+    def get_fg_instances(self, mol: Chem.Mol, fg_name: str) -> List[Tuple[int, Tuple[int, ...]]]:
+        if fg_name not in self.functional_groups:
+            return []
+        pattern = Chem.MolFromSmarts(self.functional_groups[fg_name][0])
+        if pattern is None:
+            return []
+        matches = mol.GetSubstructMatches(pattern)
+        instances = []
+        for instance_idx in range(len(matches)):
+            result = self._match_single_attachment(mol, fg_name, instance_idx)
+            if result is not None:
+                match_atoms, _ = result
+                instances.append((instance_idx, match_atoms))
+        return instances
+
     def _match_single_attachment(self, mol: Chem.Mol, fg_name: str, instance_idx: int = 0):
         pattern = Chem.MolFromSmarts(self.functional_groups[fg_name][0])
         if pattern is None:
