@@ -168,11 +168,17 @@ class TrainingRunOut(BaseModel):
     final_checkpoint_path: Optional[str] = None
     result_summary_json: Optional[dict] = None
     error_message: Optional[str] = None
+    source_manual_edit_session_ids: Optional[List[int]] = None
     created_at: datetime
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}
+
+
+class FineTuneFromSessionsRequest(BaseModel):
+    manual_edit_session_ids: List[int] = Field(min_length=1)
+    num_extra_episodes: int = Field(default=50, ge=1)
 
 
 class GenerationRequest(BaseModel):
@@ -344,6 +350,52 @@ class ManualEditSessionOut(BaseModel):
     result_summary_json: Optional[dict] = None
     error_message: Optional[str] = None
     created_at: datetime
+    finished_at: Optional[datetime] = None
+
+    # Denormalized for display (the model only stores the FK ids).
+    starting_molecule_label: Optional[str] = None
+    target_protein_name: Optional[str] = None
+    off_target_protein_name: Optional[str] = None
+    num_edits: int = 0
+
+    model_config = {"from_attributes": True}
+
+
+class EditOutcomeOut(BaseModel):
+    step_index: int
+    parent_smiles: str
+    applied_edit_ids: List[str]
+    resulting_smiles: str
+    site_key: Optional[dict] = None
+    admet_score: Optional[float] = None
+    binding_uM: Optional[float] = None
+    sa_score: Optional[float] = None
+    selectivity: Optional[float] = None
+    reward: float
+    reward_vector: List[float]
+    consumed_by_finetune: bool
+
+    model_config = {"from_attributes": True}
+
+
+class LLMFinetuneFromSessionsRequest(BaseModel):
+    manual_edit_session_ids: List[int] = Field(min_length=1)
+    llm_model_name: Optional[str] = None  # defaults to ppo/pgmorl_agent.py::DEFAULT_LLM_MODEL_NAME
+    warm_start: bool = True
+
+
+class LLMFinetuneRunOut(BaseModel):
+    id: int
+    manual_edit_session_ids: List[int]
+    llm_model_name: str
+    warm_start: bool
+    status: str
+    progress_current: int
+    progress_total: int
+    result_summary_json: Optional[dict] = None
+    error_message: Optional[str] = None
+    created_at: datetime
+    started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
 
     model_config = {"from_attributes": True}

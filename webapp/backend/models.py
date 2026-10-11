@@ -98,6 +98,8 @@ class TrainingRun(Base):
     result_summary_json = Column(JSON, nullable=True)
     error_message = Column(Text, nullable=True)
 
+    source_manual_edit_session_ids = Column(JSON, nullable=True)
+
     created_at = Column(DateTime, server_default=func.now())
     started_at = Column(DateTime, nullable=True)
     finished_at = Column(DateTime, nullable=True)
@@ -286,7 +288,30 @@ class LLMAdapterCheckpoint(Base):
 
     base_model_name = Column(String, nullable=False)
     adapter_path = Column(String, nullable=False)
-    trained_on_pareto_sweep_ids = Column(JSON, nullable=False)  
+    trained_on_pareto_sweep_ids = Column(JSON, nullable=False)
+    trained_on_manual_session_ids = Column(JSON, nullable=True)
     num_training_examples = Column(Integer, nullable=False)
 
     created_at = Column(DateTime, server_default=func.now())
+
+
+class LLMFinetuneRun(Base):
+    __tablename__ = "llm_finetune_runs"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+
+    manual_edit_session_ids = Column(JSON, nullable=False)
+    llm_model_name = Column(String, nullable=False)
+    warm_start = Column(Boolean, nullable=False, default=True)
+
+    status = Column(String, nullable=False, default="pending")  # pending|running|completed|failed
+    progress_current = Column(Integer, nullable=False, default=0)
+    progress_total = Column(Integer, nullable=False, default=1)
+
+    result_summary_json = Column(JSON, nullable=True)
+    error_message = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, server_default=func.now())
+    started_at = Column(DateTime, nullable=True)
+    finished_at = Column(DateTime, nullable=True)

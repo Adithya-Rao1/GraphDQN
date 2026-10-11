@@ -30,6 +30,12 @@ class JobManager:
         cancel_event = self._new_cancel_event(run_id)
         self._executor.submit(run_finetune_job, run_id, cancel_event)
 
+    def submit_finetune_from_sessions(self, run_id: int) -> None:
+        from webapp.backend.jobs.training import run_finetune_from_sessions_job
+
+        cancel_event = self._new_cancel_event(run_id)
+        self._executor.submit(run_finetune_from_sessions_job, run_id, cancel_event)
+
     def submit_generation(self, batch_id: int) -> None:
         from webapp.backend.jobs.generation import run_generation_job
 
@@ -70,6 +76,11 @@ class JobManager:
 
     def should_discard_pareto_sweep(self, sweep_id: int) -> bool:
         return self.should_discard(self._pareto_sweep_key(sweep_id))
+
+    def submit_llm_finetune_from_sessions(self, llm_finetune_run_id: int) -> None:
+        from webapp.backend.jobs.llm_finetune_manual import run_llm_finetune_from_sessions_job
+
+        self._executor.submit(run_llm_finetune_from_sessions_job, llm_finetune_run_id)
 
 
 job_manager = JobManager()

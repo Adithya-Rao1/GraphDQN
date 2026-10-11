@@ -6,8 +6,15 @@ from sqlalchemy.orm import Session
 from webapp.backend.db import get_db
 from webapp.backend.deps import get_current_user
 from webapp.backend.jobs.manager import job_manager
-from webapp.backend.models import FineTuneFeedback, GeneratedCandidate, OptimizationConfig, TrainingRun, User
-from webapp.backend.schemas import FineTuneRequest, TrainingRunCreate, TrainingRunOut
+from webapp.backend.models import (
+    FineTuneFeedback,
+    GeneratedCandidate,
+    ManualEditSession,
+    OptimizationConfig,
+    TrainingRun,
+    User,
+)
+from webapp.backend.schemas import FineTuneFromSessionsRequest, FineTuneRequest, TrainingRunCreate, TrainingRunOut
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
@@ -116,4 +123,48 @@ def finetune_run(run_id: int, payload: FineTuneRequest, db: Session = Depends(ge
     db.refresh(new_run)
 
     job_manager.submit_finetune(new_run.id)
+    return new_run
+
+
+@router.post("/{run_id}/finetune-from-sessions", response_model=TrainingRunOut)
+def finetune_run_from_sessions(run_id: int, payload: FineTuneFromSessionsRequest, db: Session = Depends(get_db),
+                                current_user: User = Depends(get_current_user)):
+    parent_run = _owned_run_or_404(db, run_id, current_user.id)
+    if parent_run.status != "completed" or not parent_run.final_checkpoint_path:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                             "Parent run must be completed with a checkpoint before fine-tuning")
+
+    sessions = (
+        db.query(ManualEditSession)
+        .filter(ManualEditSession.id.in_(payload.manual_edit_session_ids))
+        .all()
+    )
+    if len(sessions) != len(payload.manual_edit_session_ids):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "One or more sessions not found")
+    for session in sessions:
+        if session.user_id != current_user.id:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "One or more sessions not found")
+        if session.status != "completed":
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                 f"Session {session.id} has not finished scoring yet")
+
+    new_run = TrainingRun(
+        user_id=current_user.id,
+        config_id=parent_run.config_id,
+        is_finetune=True,
+        parent_run_id=parent_run.id,
+        finetune_alpha=None,
+        seed=parent_run.seed,
+        num_episodes=payload.num_extra_episodes,
+        max_steps=parent_run.max_steps,
+        checkpoint_interval=parent_run.checkpoint_interval,
+        status="pending",
+        progress_total=payload.num_extra_episodes,
+        source_manual_edit_session_ids=payload.manual_edit_session_ids,
+    )
+    db.add(new_run)
+    db.commit()
+    db.refresh(new_run)
+
+    job_manager.submit_finetune_from_sessions(new_run.id)
     return new_run

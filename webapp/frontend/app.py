@@ -18,6 +18,7 @@ else:
         home,
         st.Page("pages/3_optimize.py", title="Optimize Molecules"),
         st.Page("pages/10_manual_edit.py", title="Manual Edit Studio"),
+        st.Page("pages/11_session_library.py", title="Session Library"),
         st.Page("pages/7_molecular_generation.py", title="Molecular Generation"),
         st.Page("pages/8_molecular_dynamics.py", title="Molecular Dynamics"),
         st.Page("pages/9_property_prediction.py", title="Property Prediction"),

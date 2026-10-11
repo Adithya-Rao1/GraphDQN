@@ -5,7 +5,8 @@ from webapp.backend.config import CORS_ORIGINS
 from webapp.backend.db import Base, engine
 from webapp.backend import models  # noqa: F401 -- registers ORM models on Base.metadata
 from webapp.backend.routers import (
-    auth, candidates, configs, generation, manual_edit, meta, molecules, pareto_sweep, proteins, runs,
+    auth, candidates, configs, generation, llm_finetune, manual_edit, meta, molecules, pareto_sweep,
+    proteins, runs,
 )
 
 app = FastAPI(title="Metis Molecular Optimization API")
@@ -34,6 +35,7 @@ app.include_router(generation.router)
 app.include_router(candidates.router)
 app.include_router(pareto_sweep.router)
 app.include_router(manual_edit.router)
+app.include_router(llm_finetune.router)
 
 
 @app.get("/api/health")

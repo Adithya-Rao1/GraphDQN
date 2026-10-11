@@ -7,9 +7,15 @@ from datetime import datetime, timezone
 from webapp.backend.config import CHECKPOINT_ROOT
 from webapp.backend.db import SessionLocal
 from webapp.backend.jobs.manager import job_manager
-from webapp.backend.models import FineTuneFeedback, GeneratedCandidate, OptimizationConfig, TrainingRun
+from webapp.backend.models import (
+    EditOutcomeLog,
+    FineTuneFeedback,
+    GeneratedCandidate,
+    OptimizationConfig,
+    TrainingRun,
+)
 from webapp.backend.rl_bridge.dqn_runner import TrainingCancelled, train_dqn
-from webapp.backend.rl_bridge.finetune_dqn import finetune_dqn
+from webapp.backend.rl_bridge.finetune_dqn import finetune_dqn, finetune_dqn_from_edits
 from reward.multi_objective import RewardConfig
 
 
@@ -139,6 +145,72 @@ def run_finetune_job(run_id: int, cancel_event: threading.Event) -> None:
             num_extra_episodes=run.num_episodes,
             alpha=run.finetune_alpha,
             scored_candidates=scored_candidates,
+            checkpoint_interval=run.checkpoint_interval,
+            run_id=run_id_str,
+            checkpoint_root=CHECKPOINT_ROOT,
+            max_steps=run.max_steps,
+            progress_cb=progress_cb,
+            cancel_event=cancel_event,
+        )
+
+        run.status = "completed"
+        run.checkpoint_dir = summary["checkpoint_dir"]
+        run.final_checkpoint_path = summary["final_checkpoint_path"]
+        run.result_summary_json = summary
+        run.finished_at = datetime.now(timezone.utc)
+        db.commit()
+    except TrainingCancelled as e:
+        _finish_cancelled(db, run_id, e)
+    except Exception as e:  # noqa: BLE001
+        run = db.get(TrainingRun, run_id)
+        run.status = "failed"
+        run.error_message = str(e)
+        run.finished_at = datetime.now(timezone.utc)
+        db.commit()
+    finally:
+        db.close()
+
+
+def run_finetune_from_sessions_job(run_id: int, cancel_event: threading.Event) -> None:
+    db = SessionLocal()
+    try:
+        run = db.get(TrainingRun, run_id)
+        run.status = "running"
+        run.started_at = datetime.now(timezone.utc)
+        run.progress_total = run.num_episodes
+        db.commit()
+
+        parent_run = db.get(TrainingRun, run.parent_run_id)
+        config = run.config
+        reward_config = _reward_config_from(config)
+
+        outcome_rows = (
+            db.query(EditOutcomeLog)
+            .filter(EditOutcomeLog.manual_edit_session_id.in_(run.source_manual_edit_session_ids))
+            .order_by(EditOutcomeLog.manual_edit_session_id, EditOutcomeLog.step_index)
+            .all()
+        )
+        edit_rows = [{"resulting_smiles": row.resulting_smiles, "reward": row.reward} for row in outcome_rows]
+
+        run_id_str = f"run{run.id}_finetune_sessions_{int(time.time())}"
+        checkpoint_dir = os.path.join(CHECKPOINT_ROOT, run_id_str)
+        run.checkpoint_dir = checkpoint_dir
+        db.commit()
+
+        def progress_cb(current, total, _reward):
+            run.progress_current = current
+            run.progress_total = total
+            db.commit()
+
+        summary = finetune_dqn_from_edits(
+            parent_checkpoint_path=parent_run.final_checkpoint_path,
+            reward_config=reward_config,
+            target_seq=config.target_protein.sequence,
+            off_target_seq=config.off_target_protein.sequence if config.off_target_protein else None,
+            init_mol=config.starting_molecule.canonical_smiles,
+            seed=run.seed,
+            num_extra_episodes=run.num_episodes,
+            edit_rows=edit_rows,
             checkpoint_interval=run.checkpoint_interval,
             run_id=run_id_str,
             checkpoint_root=CHECKPOINT_ROOT,

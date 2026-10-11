@@ -11,11 +11,12 @@ from webapp.backend.db import get_db
 from webapp.backend.deps import get_current_user
 from webapp.backend.jobs.manager import job_manager
 from webapp.backend.mol_render import bond_indices_for_atoms, mol_image_base64, mol_to_molblock_3d
-from webapp.backend.models import ManualEditSession, Protein, StartingMolecule, User
+from webapp.backend.models import EditOutcomeLog, ManualEditSession, Protein, StartingMolecule, User
 from webapp.backend.schemas import (
     ApplyEditRequest,
     ApplyEditResponse,
     EditCatalogEntryOut,
+    EditOutcomeOut,
     EditPreviewRequest,
     EditPreviewResponse,
     ManualEditSessionCreate,
@@ -56,6 +57,18 @@ def _highlight_bonds_for(smiles: str, highlight_atoms: list) -> list:
     return bond_indices_for_atoms(smiles, [highlight_atoms])
 
 
+def _to_session_out(session: ManualEditSession, db: Session) -> ManualEditSessionOut:
+    out = ManualEditSessionOut.model_validate(session)
+    molecule = db.get(StartingMolecule, session.starting_molecule_id)
+    target = db.get(Protein, session.target_protein_id)
+    off_target = db.get(Protein, session.off_target_protein_id) if session.off_target_protein_id else None
+    out.starting_molecule_label = (molecule.label or molecule.canonical_smiles) if molecule else None
+    out.target_protein_name = target.name if target else None
+    out.off_target_protein_name = off_target.name if off_target else None
+    out.num_edits = len(session.pending_edits)
+    return out
+
+
 @router.post("", response_model=ManualEditSessionOut)
 def create_session(payload: ManualEditSessionCreate, db: Session = Depends(get_db),
                     current_user: User = Depends(get_current_user)):
@@ -80,23 +93,38 @@ def create_session(payload: ManualEditSessionCreate, db: Session = Depends(get_d
     db.add(session)
     db.commit()
     db.refresh(session)
-    return session
+    return _to_session_out(session, db)
 
 
 @router.get("", response_model=List[ManualEditSessionOut])
 def list_sessions(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return (
+    sessions = (
         db.query(ManualEditSession)
         .filter(ManualEditSession.user_id == current_user.id)
         .order_by(ManualEditSession.created_at.desc())
         .all()
     )
+    return [_to_session_out(s, db) for s in sessions]
 
 
 @router.get("/{session_id}", response_model=ManualEditSessionOut)
 def get_session(session_id: int, db: Session = Depends(get_db),
                  current_user: User = Depends(get_current_user)):
-    return _get_owned_session(session_id, db, current_user)
+    session = _get_owned_session(session_id, db, current_user)
+    return _to_session_out(session, db)
+
+
+@router.get("/{session_id}/outcomes", response_model=List[EditOutcomeOut])
+def get_session_outcomes(session_id: int, db: Session = Depends(get_db),
+                          current_user: User = Depends(get_current_user)):
+    _get_owned_session(session_id, db, current_user)
+    rows = (
+        db.query(EditOutcomeLog)
+        .filter(EditOutcomeLog.manual_edit_session_id == session_id)
+        .order_by(EditOutcomeLog.step_index)
+        .all()
+    )
+    return rows
 
 
 @router.get("/{session_id}/catalog", response_model=List[EditCatalogEntryOut])
@@ -255,7 +283,7 @@ def undo_last_edit(session_id: int, db: Session = Depends(get_db),
     session.pending_edits = list(session.pending_edits)[:-1]
     db.commit()
     db.refresh(session)
-    return session
+    return _to_session_out(session, db)
 
 
 @router.post("/{session_id}/finish", response_model=ManualEditSessionOut)
@@ -274,4 +302,4 @@ def finish_session(session_id: int, db: Session = Depends(get_db),
     db.refresh(session)
 
     job_manager.submit_manual_edit_finish(session.id)
-    return session
+    return _to_session_out(session, db)

@@ -95,6 +95,18 @@ class ApiClient:
     def finetune_run(self, run_id: int, payload: dict) -> dict:
         return self._request("POST", f"/api/runs/{run_id}/finetune", json=payload)
 
+    def finetune_run_from_sessions(self, run_id: int, payload: dict) -> dict:
+        return self._request("POST", f"/api/runs/{run_id}/finetune-from-sessions", json=payload)
+
+    def create_llm_finetune_run(self, payload: dict) -> dict:
+        return self._request("POST", "/api/llm-finetune-runs", json=payload)
+
+    def list_llm_finetune_runs(self) -> list:
+        return self._request("GET", "/api/llm-finetune-runs")
+
+    def get_llm_finetune_run(self, run_id: int) -> dict:
+        return self._request("GET", f"/api/llm-finetune-runs/{run_id}")
+
     def generate_candidates(self, run_id: int, payload: dict) -> dict:
         return self._request("POST", f"/api/runs/{run_id}/generate", json=payload)
 
@@ -174,6 +186,9 @@ class ApiClient:
 
     def get_manual_edit_catalog(self, session_id: int) -> list:
         return self._request("GET", f"/api/manual-sessions/{session_id}/catalog")
+
+    def get_manual_session_outcomes(self, session_id: int) -> list:
+        return self._request("GET", f"/api/manual-sessions/{session_id}/outcomes")
 
     def get_manual_edit_candidates(self, session_id: int, edit_id: str) -> list:
         return self._request("GET", f"/api/manual-sessions/{session_id}/edit-candidates",
