@@ -27,3 +27,4 @@ CLAUDE.md
 webapp/data/
 
 LAUNCH_WEBAPP.txt
+*.DS_Store
