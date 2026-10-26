@@ -129,11 +129,12 @@ class DKDQNAgent(object):
     def update_params(self, batch_size, gamma, polyak, update_target=False):
         states, _, rewards, next_states, dones = self.replay_buffer.sample(batch_size)
 
-        q_t = torch.zeros(batch_size, 1).to(self.device)
         s_loader = obs_to_loader(create_graph(states), batch_size)
+        q_t_parts = []
         for batch in s_loader:
             q_t_batch = self.qn.forward(batch.to(self.device))
-            q_t = torch.max(q_t_batch, dim=1, keepdim=True)[0]
+            q_t_parts.append(torch.max(q_t_batch, dim=1, keepdim=True)[0])
+        q_t = torch.cat(q_t_parts, dim=0)
 
         v_tp1 = torch.zeros(batch_size, 1).to(self.device)
         with torch.no_grad():
@@ -172,7 +173,6 @@ class DKDQNAgent(object):
 
 class BootstrapDKDQNAgent(DKDQNAgent):
     def __init__(self, input_len, output_len, device, num_heads=8):
-        super(BootstrapDKDQNAgent, self).__init__()
         self.device = device
         self.num_heads = num_heads
 
