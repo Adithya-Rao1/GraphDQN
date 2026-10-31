@@ -157,6 +157,11 @@ kbd { font: 700 .82rem ui-monospace, Menlo, monospace; padding: 2px 7px; border-
   .prog-card { min-width: 0; padding: 12px 14px; gap: 12px; } .ring { width: 48px; height: 48px; }
 }
 @media (max-width: 560px) {
+  .steps { flex: 1 1 100%; }
+  .step:not(.on) .lbl, .step:not(.on) .tick { display: none; }
+  .step button { padding: 4px 10px 4px 4px; gap: 8px; }
+  .step .link { flex: 1 1 10px; min-width: 6px; margin: 0 4px; }
+  .manual-toggle { margin-left: auto; padding: 4px 10px; }
   .step .lbl b { font-size: .95rem; } .step .num { width: 28px; height: 28px; }
   .manual-toggle small { display: none; }
   .banner { font-size: .85rem; }

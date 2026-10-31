@@ -500,7 +500,7 @@ $("btn-run").onclick = () => { if (store.seed) startRun("pharmacology", store.se
 // ------------------------------------------------------------------ banner, mode chip, help
 function paintMode() {
   const chip = $("mode-chip"), m = API.api.mode;
-  chip.hidden = false;
+  chip.hidden = m === "replay"; // the banner and the source badge already say so
   chip.className = "mode-chip " + m;
   chip.textContent = m === "live" ? "LIVE" : m === "fixtures" ? "FIXTURES" : "REPLAY";
   chip.title = m === "live" ? "Connected to the backend" : m === "fixtures" ? "Synthetic UI-development data (?fixtures=1)" : "Backend offline: recorded run";
