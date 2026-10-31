@@ -23,3 +23,4 @@ patterns:
   - {name: ring3_two_heteroatoms, smarts: "[r3;!#6]~[r3;!#6]", why: "3-membered rings with 2+ heteroatoms (diaziridine, dioxirane, oxaziridine) are unstable; epoxide/aziridine allowed"}
   - {name: sulfur_oxygen_anion_chain, smarts: "[#16;X2]-[O-]", why: "sulfenate anions in neutral drugs imply a broken sulfoxide/sulfonyl"}
   - {name: mixed_anhydride, smarts: "[#6](=O)-[#8]-[#6,#16,#15](=O)", why: "carboxylic/sulfonic/phosphonic anhydrides (e.g. an acyl-sulfonate from adding a sulfone onto an acid OH) hydrolyse immediately; esters and carbamates are not matched"}
+  - {name: carbamic_acid, smarts: "[#7]-[CX3](=O)-[OX2H1]", why: "N-C(=O)OH carbamic acids decarboxylate spontaneously (e.g. add-carboxyl onto an amine N); carbamate esters, ureas and amino acids are not matched"}
