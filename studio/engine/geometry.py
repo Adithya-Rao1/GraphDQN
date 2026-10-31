@@ -38,7 +38,7 @@ def embed_raw(smiles: str, seed: int = EMBED_SEED) -> Optional[Chem.Mol]:
             AllChem.MMFFOptimizeMolecule(mh, maxIters=200)
         else:
             AllChem.UFFOptimizeMolecule(mh, maxIters=200)
-    except Exception:  # optimisation is a refinement; ETKDG coordinates are already usable
+    except Exception:  # optimization is a refinement; ETKDG coordinates are already usable
         pass
     return Chem.RemoveHs(mh)
 

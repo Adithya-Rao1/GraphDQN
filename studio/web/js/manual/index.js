@@ -310,6 +310,14 @@ export function init(ctx = window.metis) {
     bus.emit("manual:export", { how, lines: text.trim().split("\n").length });
   }
 
+  function saveSession() {
+    const s = m.session;
+    if (!s?.steps.length) return;
+    window.dispatchEvent(new CustomEvent("metis:manual-export", {
+      detail: { steps: s.steps.map((x) => s.stepBody(x)), jsonl: s.jsonl(), seed_smiles: s.seedSmiles, target_id: s.targetId },
+    }));
+  }
+
   function finish() {
     const s = m.session;
     if (!s || !s.steps.length) return;
@@ -331,6 +339,7 @@ export function init(ctx = window.metis) {
       case "redo": return redo();
       case "lock": return toggleLock(m.selected);
       case "export": return void exportJsonl();
+      case "save": return void saveSession();
       case "clear-sel": m.selected = []; return void renderDockAfterSel();
     }
   }

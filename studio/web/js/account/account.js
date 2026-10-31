@@ -66,7 +66,7 @@ function openAuth(mode = "login") {
   let current = mode;
   const err = h("div", { class: "acct-err", role: "alert" });
   const user = h("input", { type: "text", autocomplete: "username", maxLength: 32, spellcheck: false, autocapitalize: "none" });
-  const pass = h("input", { type: "password", maxLength: 72 });
+  const pass = h("input", { type: "password", maxLength: 128 });
   const submit = h("button", { class: "abtn primary grow", type: "submit" });
   const tabLogin = h("button", { type: "button", role: "tab", on: { click: () => setMode("login") } }, "Log in");
   const tabSign = h("button", { type: "button", role: "tab", on: { click: () => setMode("signup") } }, "Sign up");
@@ -77,7 +77,7 @@ function openAuth(mode = "login") {
     submit.textContent = m === "login" ? "Log in" : "Create account";
     pass.autocomplete = m === "login" ? "current-password" : "new-password";
     hint.textContent = m === "signup"
-      ? "3-32 chars: a-z 0-9 _ -  ·  password 8+ characters. No email, no personal data."
+      ? "Username 3-64 characters (letters, digits, . _ - @ +) · password 8+ characters, any characters. No email needed, no personal data."
       : "Accounts are optional. Guests can use everything except saving.";
   }
   const form = h("form", { on: { submit: async (e) => {

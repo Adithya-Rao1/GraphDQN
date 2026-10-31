@@ -75,10 +75,11 @@ def test_duplicate_and_validation(app):
     c = client(app)
     assert signup(c).status_code == 200
     assert signup(client(app), "Alice").status_code == 409
-    for bad in ["ab", "a" * 33, "has space", "emoji😀", "semi;colon"]:
+    for bad in ["ab", "a" * 65, "has space", "emoji😀", "semi;colon"]:
         assert signup(client(app), bad).status_code == 422, bad
     assert signup(client(app), "okname", "short").status_code == 422
-    assert signup(client(app), "okname", "é" * 40).status_code == 422  # 80 bytes > 72
+    assert signup(client(app), "okname", "é" * 129).status_code == 422
+    assert signup(client(app), "okname2", "é" * 40 + " Ünï ¯\\_(ツ)_/¯ 密码").status_code == 200  # any characters, > 72 bytes
 
 
 def test_rate_limit(tmp_path, monkeypatch):

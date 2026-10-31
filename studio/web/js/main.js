@@ -478,7 +478,7 @@ actions.dock = async (smiles) => {
 const affinityOfSeed = (smiles) => (smiles === S.seedSmiles && store.seed ? affinityOf(store.seed.score) : null);
 function paintPoseFailure() { if (!S.pose) $("pose-body").innerHTML = `<p class="muted">No pose yet. Try again with “Predict pose”.</p>`; }
 
-actions.optimise = async (smiles) => {
+actions.optimize = async (smiles) => {
   if (!smiles) return;
   viewToken++;
   if (S.stage !== "pharmacology") setStage("pharmacology");
@@ -524,7 +524,7 @@ window.addEventListener("keydown", (e) => {
   else if (k === "Escape") toggleHelp(false);
   else if (k === "Enter" && e.target.tagName !== "BUTTON" && !$("btn-stage-run").disabled) $("btn-stage-run").click();
   else if (k.toLowerCase() === "d" && !$("btn-dock").disabled) $("btn-dock").click();
-  else if (k.toLowerCase() === "p" && !$("btn-optimise").disabled) $("btn-optimise").click();
+  else if (k.toLowerCase() === "p" && !$("btn-optimize").disabled) $("btn-optimize").click();
   else if (k.toLowerCase() === "a" && S.stage === "pose") { const c = $("pose-apo"); c.checked = !c.checked; c.onchange({ target: c }); }
 });
 

@@ -110,7 +110,7 @@
         <div class="lead-wrap"><table class="leads-table" id="leads-table"><tbody><tr><td class="muted">Run the binding stage to see leads.</td></tr></tbody></table></div>
         <div class="row lead-actions">
           <button class="btn" id="btn-dock" disabled title="Predict the 3D pose of the selected lead with DynamicBind (D)">Dock this lead →</button>
-          <button class="btn primary" id="btn-optimise" disabled title="Optimise the selected lead's pharmacology (P)">Optimise pharmacology →</button>
+          <button class="btn primary" id="btn-optimize" disabled title="Optimize the selected lead's pharmacology (P)">Optimize pharmacology →</button>
         </div>
       </section>
 
@@ -120,7 +120,7 @@
         <div class="check-row" id="pose-controls" hidden>
           <label class="check"><input type="checkbox" id="pose-apo" checked> Show apo (ghost) vs predicted</label>
           <label class="check"><input type="checkbox" id="pose-disp" checked> Highlight moved residues</label>
-          <div class="row"><button class="btn small" id="pose-replay">↻ Replay glide</button><button class="btn small ghost" id="pose-opt">Optimise pharmacology →</button></div>
+          <div class="row"><button class="btn small" id="pose-replay">↻ Replay glide</button><button class="btn small ghost" id="pose-opt">Optimize pharmacology →</button></div>
         </div>
       </section>
 
@@ -193,7 +193,7 @@
       <tr><td><kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd></td><td>go to stage 1 Binding / 2 Pose / 3 Pharmacology / Manual</td></tr>
       <tr><td><kbd>Enter</kbd></td><td>run the current stage</td></tr>
       <tr><td><kbd>D</kbd></td><td>dock the selected lead (stage 2)</td></tr>
-      <tr><td><kbd>P</kbd></td><td>optimise the selected lead's pharmacology (stage 3)</td></tr>
+      <tr><td><kbd>P</kbd></td><td>optimize the selected lead's pharmacology (stage 3)</td></tr>
       <tr><td><kbd>A</kbd></td><td>toggle apo-vs-predicted overlay (stage 2)</td></tr>
       <tr><td><kbd>S</kbd></td><td>save the current view as PNG</td></tr>
       <tr><td><kbd>?</kbd></td><td>this help</td></tr>
@@ -204,5 +204,6 @@
 </div>
 <script type="module" src="js/main.js"></script>
 <script type="module" src="js/account/account.js"></script>
+<script type="module" src="js/stopsave.js"></script>
 </body>
 </html>

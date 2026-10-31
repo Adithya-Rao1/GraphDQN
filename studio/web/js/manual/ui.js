@@ -25,7 +25,8 @@ export function dockHtml(m) {
       <button class="md-btn" data-act="undo" ${s.steps.length ? "" : "disabled"} title="Undo (Ctrl/⌘+Z)">↶ Undo</button>
       <button class="md-btn" data-act="redo" ${s.redoStack.length ? "" : "disabled"} title="Redo (Ctrl/⌘+Shift+Z)">↷ Redo</button>
       <button class="md-btn ${sel.length && sel.every((i) => s.locked.has(i)) ? "on" : ""}" data-act="lock" ${sel.length ? "" : "disabled"} title="Lock the selected atom(s): locked atoms are never edited (L, or Shift-click an atom)">🔒 Lock</button>
-      <button class="md-btn" data-act="export" ${s.steps.length ? "" : "disabled"} title="Download the session as training data (JSONL)">⇩ Export</button></div>`;
+      <button class="md-btn" data-act="export" ${s.steps.length ? "" : "disabled"} title="Download the session as training data (JSONL)">⇩ Export</button>
+      <button class="md-btn primary" data-act="save" ${s.steps.length ? "" : "disabled"} title="Save this session to your library (sign in to keep it)">💾 Save session</button></div>`;
   let selLine;
   if (!sel.length) selLine = `<div class="md-sel hint">Click an atom in the 3D view to choose a site.<br><span>Ctrl/⌘-click a second atom to narrow to a bond · Shift-click to lock.</span></div>`;
   else selLine = `<div class="md-sel"><b>Site:</b> atom${sel.length > 1 ? "s" : ""} ${sel.map((i) => `<span class="md-atom">${i}</span>`).join("")}<button class="md-icon" data-act="clear-sel" title="Clear selection (Esc)">✕</button></div>`;

@@ -71,7 +71,7 @@ class RunConfig(BaseModel):
     preset_id: Optional[str] = None
     stage: Stage = "pharmacology"
     target_id: Optional[str] = None  # key into studio/data/targets (binding stage needs it)
-    min_similarity_to_seed: float = 0.4  # Tanimoto guard so stage 1 stays an optimisation of the seed drug
+    min_similarity_to_seed: float = 0.4  # Tanimoto guard so stage 1 stays an optimization of the seed drug
     max_mw: Optional[float] = None
     profile_id: Optional[str] = None  # saved domain profile (owner: accounts)
     adapter_id: Optional[str] = None  # per-user fine-tuned policy adapter (owner: adapt)

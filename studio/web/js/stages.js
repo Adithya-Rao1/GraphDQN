@@ -23,7 +23,7 @@ export const S = {
 };
 
 /** main.js assigns these; stages.js buttons call them. */
-export const actions = { dock: null, optimise: null, loadTarget: null, restore: null };
+export const actions = { dock: null, optimize: null, loadTarget: null, restore: null };
 
 const cbs = new Set();
 let stream = null;
@@ -172,7 +172,7 @@ export function renderChips() {
 }
 
 // ------------------------------------------------------------------------------- run button
-const RUN_LABEL = { binding: "Evolve for binding ▶", pose: "Predict pose ▶", pharmacology: "Optimise pharmacology ▶", manual: "" };
+const RUN_LABEL = { binding: "Evolve for binding ▶", pose: "Predict pose ▶", pharmacology: "Optimize pharmacology ▶", manual: "" };
 function paintRunButton() {
   const b = $("btn-stage-run");
   b.textContent = RUN_LABEL[S.stage] || "Run";
@@ -256,7 +256,7 @@ const fmt = (v, d = 2) => (v == null ? "—" : v.toFixed(d));
 export function renderLeads() {
   const tbl = $("leads-table"), data = leadRows();
   renderChart(data);
-  const dock = $("btn-dock"), opt = $("btn-optimise");
+  const dock = $("btn-dock"), opt = $("btn-optimize");
   if (!data) {
     tbl.innerHTML = `<tbody><tr><td class="muted">Run the binding stage to see leads.</td></tr></tbody>`;
     dock.disabled = opt.disabled = !S.seedSmiles;
@@ -347,11 +347,11 @@ export function mountStages() {
     const seed = S.stage === "binding" ? S.seedSmiles : S.lead?.smiles || S.seedSmiles;
     if (S.stage === "binding") startRun("binding", seed);
     else if (S.stage === "pose") actions.dock?.(seed);
-    else if (S.stage === "pharmacology") actions.optimise?.(seed);
+    else if (S.stage === "pharmacology") actions.optimize?.(seed);
   };
   $("btn-dock").onclick = () => { set("pose"); actions.dock?.(S.lead?.smiles || S.seedSmiles); };
-  $("btn-optimise").onclick = () => { set("pharmacology"); actions.optimise?.(S.lead?.smiles || S.seedSmiles); };
-  $("pose-opt").onclick = () => { set("pharmacology"); actions.optimise?.(S.pose?.smiles || S.lead?.smiles || S.seedSmiles); };
+  $("btn-optimize").onclick = () => { set("pharmacology"); actions.optimize?.(S.lead?.smiles || S.seedSmiles); };
+  $("pose-opt").onclick = () => { set("pharmacology"); actions.optimize?.(S.pose?.smiles || S.lead?.smiles || S.seedSmiles); };
   $("t-sim").oninput = (e) => { $("t-sim-out").textContent = Number(e.target.value).toFixed(2); };
   $("leads-table").onclick = (e) => {
     const tr = e.target.closest("tr.lead"); if (!tr) return;

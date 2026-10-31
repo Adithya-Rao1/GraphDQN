@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import hmac
 import os
+import base64
+import hashlib
 import re
 import secrets
 import threading
@@ -18,7 +20,7 @@ import jwt
 from studio.accounts.db import cache_dir
 
 COOKIE = "studio_auth"
-USERNAME_RE = re.compile(r"^[a-z0-9_-]{3,32}$")
+USERNAME_RE = re.compile(r"^[a-z0-9][a-z0-9._@+-]{2,63}$")
 JWT_ALG = "HS256"
 
 
@@ -37,24 +39,31 @@ class AccountsConfig:
 
 
 def validate_username(name: str) -> Optional[str]:
-    return None if USERNAME_RE.match(name or "") else "Username must be 3-32 characters of a-z, 0-9, _ or -"
+    return None if USERNAME_RE.match(name or "") else "Username: 3-64 characters (letters, digits, . _ - @ +); case does not matter"
 
 
 def validate_password(pw: str) -> Optional[str]:
     if not isinstance(pw, str) or len(pw) < 8:
         return "Password must be at least 8 characters"
-    if len(pw.encode("utf-8")) > 72:
-        return "Password must be at most 72 bytes"
+    if len(pw) > 128:
+        return "Password must be at most 128 characters"
     return None
 
 
+def _prehash(pw: str) -> bytes:
+    """bcrypt only reads 72 bytes; SHA-256 + base64 lets every character of a long passphrase count."""
+    return base64.b64encode(hashlib.sha256(pw.encode("utf-8")).digest())
+
+
 def hash_password(pw: str, cost: int = 12) -> str:
-    return bcrypt.hashpw(pw.encode("utf-8"), bcrypt.gensalt(rounds=cost)).decode("ascii")
+    return bcrypt.hashpw(_prehash(pw), bcrypt.gensalt(rounds=cost)).decode("ascii")
 
 
 def check_password(pw: str, pw_hash: str) -> bool:
     try:
-        return bcrypt.checkpw(pw.encode("utf-8")[:72], pw_hash.encode("ascii"))
+        h = pw_hash.encode("ascii")
+        # second check accepts hashes created before the prehash change
+        return bcrypt.checkpw(_prehash(pw), h) or bcrypt.checkpw(pw.encode("utf-8")[:72], h)
     except ValueError:
         return False
 
