@@ -247,8 +247,11 @@ function updateLockNote() {
   if (!ready) return;
   n.textContent = store.locked.size ? `🔒 ${store.locked.size} atom${store.locked.size === 1 ? "" : "s"} locked: ${[...store.locked].sort((a, b) => a - b).join(", ")}` : "Tip: click atoms in the 3D view to lock them before evolving.";
 }
+let manualActive = false; // in manual mode a click selects an edit site; Shift-click locks (handled by the manual panel)
+bus.on("manual:activate", () => { manualActive = true; });
+bus.on("manual:deactivate", () => { manualActive = false; });
 bus.on("stage:atomclick", ({ index }) => {
-  if (store.status !== "ready") return;
+  if (store.status !== "ready" || manualActive) return;
   if (store.locked.has(index)) store.locked.delete(index); else store.locked.add(index);
   updateLockNote();
   bus.emit("lock:change", { locked: [...store.locked] });
