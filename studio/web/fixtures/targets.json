@@ -1,0 +1,64 @@
+[
+ {
+  "id": "fixture1",
+  "name": "FIXTURE target (synthetic helix bundle)",
+  "uniprot": null,
+  "pdb_id": "FAKE",
+  "chain": "A",
+  "sequence": "LKSIPHWEVDRFYCAGTNQMLKDRFYCAGTNQMLKSIPHWEVDRQMLKSIPHWEVDRFYCAGTNQMEVDRFYCAGTNQMLKSIPHWEVTNQMLKSIPHWEVDRFYCAGTNHWEVDRFYCAGTNQMLKSIPHW",
+  "drugs": [
+   {
+    "name": "Ibuprofen (fixture drug)",
+    "smiles": "CC(C)Cc1ccc(cc1)C(C)C(=O)O",
+    "chembl_id": null,
+    "source": "FIXTURE"
+   },
+   {
+    "name": "Aspirin (fixture drug)",
+    "smiles": "CC(=O)Oc1ccccc1C(=O)O",
+    "chembl_id": null,
+    "source": "FIXTURE"
+   }
+  ],
+  "structure_url": "fixtures/fixture1.pdb",
+  "pocket_residues": [
+   7,
+   9,
+   11,
+   13,
+   15,
+   17,
+   29,
+   31,
+   33,
+   35,
+   37,
+   39,
+   51,
+   53,
+   55,
+   57,
+   59,
+   61,
+   73,
+   75,
+   77,
+   79,
+   81,
+   83,
+   95,
+   97,
+   99,
+   101,
+   103,
+   105,
+   117,
+   119,
+   121,
+   123,
+   125,
+   127
+  ],
+  "note": "FIXTURE: made-up protein for UI development. Not a real target, not a real binding site."
+ }
+]
