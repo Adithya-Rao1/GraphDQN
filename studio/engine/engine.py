@@ -10,11 +10,12 @@ deterministic collaborators.
 """
 from __future__ import annotations
 
+import os
 import random
 import time
 from typing import Dict, Iterator, List, Optional, Tuple
 
-from rdkit import Chem
+from rdkit import Chem, DataStructs
 
 from studio.contracts import Embedder, Explainer, Policy, Registry, Scorer
 from studio.engine import geometry
@@ -25,6 +26,7 @@ from studio.schema import (
     RunConfig, RunStartPayload, ScoreResult, StoryCard,
 )
 
+CROSSOVER_MIN_SIM = 0.5  # demo-safe mode: a crossover child must stay this Tanimoto-close to its first parent
 ATTEMPT_FACTOR = 8  # proposal attempts per wanted child before a generation gives up
 
 
@@ -114,6 +116,11 @@ class Engine:
                     continue
                 seen.add(p.smiles)
                 ok, reason = check_child(p.parents[0].smiles, p.smiles)
+                if ok and p.edit_op is None and os.environ.get("STUDIO_ALL_EDITS") != "1":
+                    # crossover is not a registry op: in demo-safe mode keep only near-parent children
+                    sim = DataStructs.TanimotoSimilarity(niching.fp(p.smiles), niching.fp(p.parents[0].smiles))
+                    if sim < CROSSOVER_MIN_SIM:
+                        ok, reason = False, "crossover_far"
                 if not ok:  # chemically implausible: dropped, never scored/accepted/emitted
                     key = reason.split(":")[0]
                     rej_reasons[key] = rej_reasons.get(key, 0) + 1

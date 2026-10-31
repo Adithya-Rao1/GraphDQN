@@ -22,3 +22,4 @@ patterns:
   - {name: small_ring_allene, smarts: "[#6;r3,r4,r5,r6,r7;$([#6]=[#6]=*)]", why: "allene/cumulene in a ring of 7 or fewer atoms is impossibly strained"}
   - {name: ring3_two_heteroatoms, smarts: "[r3;!#6]~[r3;!#6]", why: "3-membered rings with 2+ heteroatoms (diaziridine, dioxirane, oxaziridine) are unstable; epoxide/aziridine allowed"}
   - {name: sulfur_oxygen_anion_chain, smarts: "[#16;X2]-[O-]", why: "sulfenate anions in neutral drugs imply a broken sulfoxide/sulfonyl"}
+  - {name: mixed_anhydride, smarts: "[#6](=O)-[#8]-[#6,#16,#15](=O)", why: "carboxylic/sulfonic/phosphonic anhydrides (e.g. an acyl-sulfonate from adding a sulfone onto an acid OH) hydrolyse immediately; esters and carbamates are not matched"}
