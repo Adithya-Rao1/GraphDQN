@@ -405,7 +405,7 @@ export class PoseView {
     el.innerHTML = `
       <div class="tile"><div class="k">Pose confidence</div><div class="v">${fmt(r.pose_confidence)}</div><div class="s">DynamicBind · predicted</div></div>
       <div class="tile"><div class="k">DynamicBind affinity</div><div class="v">${fmt(r.affinity, 1)}</div><div class="s">independent model · predicted</div></div>
-      <div class="tile alt"><div class="k">PLAPT affinity (stage 1)</div><div class="v">${typeof lead === "number" ? lead.toFixed(1) : "n/a"}</div><div class="s">sequence model · predicted</div></div>
+      <div class="tile alt"><div class="k">PLAPT affinity (stage 1)</div><div class="v">${typeof lead === "number" ? lead.toFixed(1) : "—"}</div><div class="s">${typeof lead === "number" ? "sequence model · predicted" : "run stage 1 to compare"}</div></div>
       <div class="tile-note">Both affinities are model predictions, not measurements. They come from different models and need not agree. ${esc(r.note || "")}</div>`;
   }
 

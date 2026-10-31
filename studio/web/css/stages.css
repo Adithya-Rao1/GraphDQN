@@ -37,7 +37,7 @@
 .manual-toggle span:last-child { display: flex; flex-direction: column; line-height: 1.1; } .manual-toggle small { font-size: .72rem; color: var(--muted); }
 
 /* the stepper adds a row: the stage area shrinks by its height */
-.main { height: calc(100vh - var(--top-h) - var(--nav-h)); }
+.main { height: calc(100vh - var(--top-h) - var(--nav-h)); min-height: 520px; }
 
 /* ---------------------------------------------------------- which card shows when */
 body[data-stage="binding"] #card-start,
@@ -109,7 +109,7 @@ body[data-run="1"] #card-target .btn.big { padding: 8px 16px; }
 .check-row { margin-top: 6px; } .check-row .row { margin-top: 10px; flex-wrap: wrap; }
 
 /* ----------------------------------------------------------- stage HUD overlays */
-.stage-hud.badge { right: 18px; bottom: 14px; padding: 10px 16px; border-radius: 14px; background: rgba(8, 12, 22, .78); border: 1.5px solid var(--neutral); backdrop-filter: blur(6px); display: flex; align-items: baseline; gap: 10px; pointer-events: none; }
+.stage-hud.badge { right: 18px; bottom: 40px; padding: 10px 16px; border-radius: 14px; background: rgba(8, 12, 22, .78); border: 1.5px solid var(--neutral); backdrop-filter: blur(6px); display: flex; align-items: baseline; gap: 10px; pointer-events: none; }
 .stage-hud.badge b { font-size: 1.6rem; } .stage-hud.badge .k { font-size: .85rem; color: #b6c3d6; text-transform: uppercase; letter-spacing: .06em; }
 .stage-hud.badge small { color: #93a1b5; font-size: .72rem; letter-spacing: .05em; text-transform: uppercase; }
 .stage-hud.badge.ok { border-color: var(--good); } .stage-hud.badge.ok .d { color: var(--good); }

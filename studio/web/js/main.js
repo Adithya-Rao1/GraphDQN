@@ -343,7 +343,10 @@ const poseUi = { lastSmiles: null };
 let structureText = null, sceneFlavor = null; // flavor: "apo" (target structure) | "pose" (DynamicBind protein)
 const skeleton = (on, text) => { $("stage-skeleton").hidden = !on; if (text) $("sk-text").textContent = text; };
 
-async function ensureScene(flavor) {
+// scene loads are serialised: stage changes and run buttons can both ask for a scene at the same moment
+let sceneLock = Promise.resolve(), viewToken = 0, docking = false;
+const ensureScene = (flavor) => (sceneLock = sceneLock.then(() => ensureSceneNow(flavor)).catch((e) => console.error(e)));
+async function ensureSceneNow(flavor) {
   const t = S.target;
   if (!t || !structureText) return;
   if (pocket.main && sceneFlavor === flavor && pocket.target?.id === t.id) return;
@@ -372,7 +375,7 @@ async function loadTargetScene(t) {
 }
 actions.loadTarget = loadTargetScene;
 
-async function previewSeed(smiles, block) {
+async function previewSeed(smiles, block, tok = viewToken) {
   if (!smiles) return;
   try {
     let canonical = smiles, score = null;
@@ -381,6 +384,7 @@ async function previewSeed(smiles, block) {
       if (!v?.ok || !v.molblock) throw new Error(v?.error || "no 3D coordinates");
       block = v.molblock; canonical = v.canonical_smiles || smiles; score = v.score || null;
     }
+    if (tok !== viewToken || store.status === "running") return; // a run / other stage took over while the preview was loading
     $("stage-empty").hidden = true;
     timeline.live = false;
     showPreview({ canonical_smiles: canonical, molblock: block, score }, null);
@@ -391,13 +395,14 @@ async function previewSeed(smiles, block) {
 
 /** Put the 3D scene and timeline into the right state for a stage (also used after a target change). */
 async function enterStage(st) {
+  const tok = ++viewToken;
   if (st !== "pose" && poseView.active) { poseView.leave(); lastKf && stage.setKeyframe(lastKf); }
   if (st === "pose") {
     timeline.pause();
     closeStream();
     $("stage-empty").hidden = true;
     await ensureScene("apo");
-    if (S.pose && poseView.result && S.pose.smiles === (S.lead?.smiles || S.seedSmiles)) await playCachedPose();
+    if (!docking && S.pose && poseView.result && S.pose.smiles === (S.lead?.smiles || S.seedSmiles)) await playCachedPose();
     else if (!poseView.active) poseView._enter();
     paintPoseCard();
     return;
@@ -414,8 +419,9 @@ async function enterStage(st) {
   if (rec?.events.length) return;
   const seed = want === "binding" ? S.seedSmiles : S.lead?.smiles || S.seedSmiles;
   const pose = S.pose && S.pose.smiles === seed ? S.pose : null;
+  if (tok !== viewToken) return;
   store.reset();
-  await previewSeed(seed, pose?.ligandBlock);
+  await previewSeed(seed, pose?.ligandBlock, tok);
 }
 
 mountStages();
@@ -442,7 +448,7 @@ function paintPoseCard() {
     <div class="kv"><span>Ligand</span><code>${esc(S.pose.smiles)}</code></div>
     <div class="kv"><span>Pose confidence</span><b>${f(r.pose_confidence)}</b></div>
     <div class="kv"><span>DynamicBind affinity</span><b>${f(r.affinity, 1)}</b></div>
-    <div class="kv"><span>PLAPT affinity (stage 1)</span><b>${typeof lead === "number" ? lead.toFixed(1) : "n/a"}</b></div>
+    <div class="kv"><span>PLAPT affinity (stage 1)</span><b>${typeof lead === "number" ? lead.toFixed(1) : "— (run stage 1)"}</b></div>
     <div class="kv"><span>Most moved residues</span><span>${movedList(S.pose.moved)}</span></div>
     <p class="plain">What this means: DynamicBind predicts <i>how</i> the drug sits in the pocket and how the protein bends around it. Its affinity and PLAPT's affinity are two separate model predictions, not measurements, and they can disagree. Treat both as hypotheses to test.</p>
     ${r.note ? `<p class="note">${esc(r.note)}</p>` : ""}`;
@@ -450,6 +456,7 @@ function paintPoseCard() {
 
 actions.dock = async (smiles) => {
   if (!S.target || !smiles) return;
+  docking = true; viewToken++;
   if (S.stage !== "pose") setStage("pose");
   await ensureScene("apo");
   const lead = S.lead?.smiles === smiles ? S.lead.affinity : S.runs.binding?.done ? null : affinityOfSeed(smiles);
@@ -464,6 +471,7 @@ actions.dock = async (smiles) => {
       paintPoseCard(); renderChips(); bus.emit("pose:done", { pose: S.pose });
     },
   });
+  docking = false;
   $("btn-stage-run").disabled = false;
   if (!done) paintPoseFailure();
 };
@@ -472,8 +480,10 @@ function paintPoseFailure() { if (!S.pose) $("pose-body").innerHTML = `<p class=
 
 actions.optimise = async (smiles) => {
   if (!smiles) return;
+  viewToken++;
   if (S.stage !== "pharmacology") setStage("pharmacology");
   await ensureScene(S.pose ? "pose" : "apo");
+  viewToken++;
   stopStreams();
   store.reset();
   await startRun("pharmacology", smiles);
