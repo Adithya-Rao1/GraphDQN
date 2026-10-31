@@ -242,6 +242,11 @@ def create_app(engine: Any = None, scorer: Any = None, settings: Optional[Settin
                                  headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
     stages.install(app, svc, mgr, scorer, s)
+    try:  # optional accounts/library; leaves the app untouched on any failure
+        from studio.accounts.install import install as install_accounts
+        install_accounts(app)
+    except Exception as exc:
+        log.info("accounts unavailable: %s", type(exc).__name__)
 
     if WEB.exists():
         app.mount("/", StaticFiles(directory=WEB, html=True), name="web")
