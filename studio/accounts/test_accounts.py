@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 from studio.accounts import auth
 from studio.accounts.install import install
 from studio.accounts.profile_scorer import ProfileScorer
-from studio.schema import RunConfig
+from studio.schema import ObjectiveSpec, RunConfig
 from studio.server.app import create_app
 from studio.server.core import Settings
 
@@ -278,7 +278,7 @@ def test_profile_scorer(monkeypatch):
     cfg = RunConfig(seed_smiles="c1ccccc1[N+](=O)[O-]")
     prof = {"name": "p", "avoid_smarts": ["[N+](=O)[O-]"], "objectives": {"qed": {"weight": 3.0}}}
     ps = ProfileScorer(base, prof)
-    merged = cfg.model_copy(update={"objectives": {"qed": {"weight": 3.0}}})
+    merged = cfg.model_copy(update={"objectives": {"qed": ObjectiveSpec(weight=3.0)}})
     plain, wrapped = base.score(cfg.seed_smiles, merged), ps.score(cfg.seed_smiles, cfg)
     hits = [a for a in wrapped.alerts if a.family == "USER"]
     assert len(hits) == 1 and wrapped.composite < plain.composite
