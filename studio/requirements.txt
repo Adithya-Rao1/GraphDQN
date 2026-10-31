@@ -6,8 +6,10 @@ pydantic>=2
 numpy
 scikit-learn      # PCA for the population map
 deap              # GA loop (NSGA-II selection)
+pyyaml            # registry edits.yaml
+scipy             # policy eval stats, embed alignment
+torch             # policy DQN + optional ChemBERTa (CPU wheel is enough)
 pytest
 httpx
 # optional, owned by single streams:
-# torch --index-url https://download.pytorch.org/whl/cpu   (policy, embed)
 # transformers                                             (embed: ChemBERTa; pin revision, load via HF_HOME=/metis-data/hf-cache on the Space)

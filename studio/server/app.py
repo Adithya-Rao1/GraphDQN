@@ -34,8 +34,8 @@ COOKIE = "studio_sid"
 
 # Conventional entry points we look for in the other streams (first match wins).
 _FACTORIES = {
-    "studio.engine": (("build_engine", "make_engine", "create_engine"), ("GAEngine", "StudioEngine", "Engine")),
-    "studio.scoring": (("build_scorer", "make_scorer", "create_scorer"), ("DescriptorScorer", "RDKitScorer", "Scorer")),
+    "studio.wiring:engine": (("build_engine",), ()),
+    "studio.wiring:scorer": (("build_scorer",), ()),
 }
 _OPTIONAL = ("studio.registry", "studio.explain", "studio.embed", "studio.policy")
 
@@ -44,11 +44,12 @@ def _public_names(mod) -> list:
     return [n for n in dir(mod) if not n.startswith("_") and not inspect.ismodule(getattr(mod, n))]
 
 
-def _load_component(modname: str) -> Optional[Any]:
+def _load_component(key: str) -> Optional[Any]:
     """Instantiate a stream's main object, or None if it isn't there yet."""
+    modname = key.split(":")[0]
     try:
         mod = importlib.import_module(modname)
-        factories, classes = _FACTORIES[modname]
+        factories, classes = _FACTORIES[key]
         for n in factories:
             if callable(getattr(mod, n, None)):
                 return getattr(mod, n)()
@@ -73,8 +74,8 @@ def create_app(engine: Any = None, scorer: Any = None, settings: Optional[Settin
     if s.force_mock:
         engine, scorer = None, None
     else:
-        engine = engine or _load_component("studio.engine")
-        scorer = scorer or _load_component("studio.scoring")
+        engine = engine or _load_component("studio.wiring:engine")
+        scorer = scorer or _load_component("studio.wiring:scorer")
     mock_events = json.loads(MOCK.read_text()) if MOCK.exists() else []
     mgr = RunManager(s, engine, mock_events)
     components = {
