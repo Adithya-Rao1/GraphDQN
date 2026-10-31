@@ -73,6 +73,8 @@ class RunConfig(BaseModel):
     target_id: Optional[str] = None  # key into studio/data/targets (binding stage needs it)
     min_similarity_to_seed: float = 0.4  # Tanimoto guard so stage 1 stays an optimisation of the seed drug
     max_mw: Optional[float] = None
+    profile_id: Optional[str] = None  # saved domain profile (owner: accounts)
+    adapter_id: Optional[str] = None  # per-user fine-tuned policy adapter (owner: adapt)
     seed_molblock: Optional[str] = None  # 3D seed (e.g. a DynamicBind pose) so children stay in the pocket frame
 
 
