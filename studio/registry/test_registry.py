@@ -42,3 +42,18 @@ def test_never_raises_on_bad_input(bad):
 def test_deterministic():
     for op, site in reg.applicable(SEED)[:100]:
         assert op.apply(SEED, site) == op.apply(SEED, site)
+
+
+def test_demo_safe_filter(monkeypatch):
+    from studio.registry import get_registry
+    r = get_registry()
+    smi = "CCOC(=O)c1ccc(cc1)[N+](=O)[O-]"
+    monkeypatch.delenv("STUDIO_ALL_EDITS", raising=False)
+    safe = r.applicable(smi)
+    assert safe and all(op.demo_safe for op, _ in safe)
+    assert not any(op.id in ("atom_sub_s", "atom_add_br") for op, _ in safe)
+    allx = r.applicable(smi, demo_safe_only=False)
+    assert len(allx) > len(safe)
+    monkeypatch.setenv("STUDIO_ALL_EDITS", "1")
+    assert len(r.applicable(smi)) == len(allx)
+    assert sum(op.demo_safe for op in r.all()) < len(r.all())

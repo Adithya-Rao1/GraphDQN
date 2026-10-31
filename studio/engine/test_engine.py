@@ -343,3 +343,23 @@ def test_acceptance_pop20_gen10_under_60s():
     assert dt < 60
     print(f"\n[engine] pop20 x gen10: {dt:.1f}s, {eng.stats['children']:.0f} children, "
           f"{eng.stats['children_per_second']:.1f} children/s, {len(events)} events")
+
+
+class ChargeBreakEdit(FakeEdit):
+    """Valid-looking products that change the net charge: the sanity filter must drop them."""
+
+    def apply(self, smiles, site):
+        return ["CCOC(=O)c1ccc(cc1)[N+](C)(C)C"]
+
+
+class OnlyChargeBreakRegistry(OnlyBadRegistry):
+    def __init__(self):
+        self._e = ChargeBreakEdit("cb", "cb", "atom", "[cH]", lambda rw, i: None)
+
+
+def test_sanity_filter_drops_children_and_reports_reasons():
+    eng = engine_with(registry=OnlyChargeBreakRegistry())
+    events = list(eng.run("r1", cfg(generations=2, use_crossover=False)))
+    assert not [c for c in by_type(events, "candidate") if c.accepted]
+    notes = [m.note for m in by_type(events, "policy_metrics")]
+    assert any(n and "rejected" in n and "net_charge_changed" in n for n in notes)

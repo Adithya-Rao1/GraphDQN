@@ -18,6 +18,7 @@ from rdkit import Chem
 
 from studio.contracts import Embedder, Explainer, Policy, Registry, Scorer
 from studio.engine import geometry
+from studio.sanity.checks import check_child
 from studio.engine.ga import Individual, Locks, Niching, Operators, Proposal, canonical_valid
 from studio.schema import (
     Candidate, ErrorPayload, Event, GenerationPayload, PolicyMetrics, PopulationMember,
@@ -104,6 +105,7 @@ class Engine:
         for gen in range(1, config.generations + 1):
             # 1. propose valid, lock-respecting, unseen, embeddable children
             props: List[Proposal] = []
+            rej_reasons: Dict[str, int] = {}  # sanity-filter rejections this generation, by reason
             attempts, budget = 0, ATTEMPT_FACTOR * config.population_size
             while len(props) < config.population_size and attempts < budget:
                 attempts += 1
@@ -111,6 +113,11 @@ class Engine:
                 if p is None or p.smiles in seen:
                     continue
                 seen.add(p.smiles)
+                ok, reason = check_child(p.parents[0].smiles, p.smiles)
+                if not ok:  # chemically implausible: dropped, never scored/accepted/emitted
+                    key = reason.split(":")[0]
+                    rej_reasons[key] = rej_reasons.get(key, 0) + 1
+                    continue
                 mol = geometry.embed_raw(p.smiles)
                 if mol is None:
                     continue
@@ -158,7 +165,7 @@ class Engine:
                 population=members, map_xy=map_xy, map_method=map_method))
 
             # 6. online learning + policy metrics
-            yield emit("policy_metrics", self._policy_metrics(gen, kids, accepted, ops))
+            yield emit("policy_metrics", self._policy_metrics(gen, kids, accepted, ops, rej_reasons))
             ops.new_generation_caches()
 
         best = pop[0]
@@ -182,12 +189,16 @@ class Engine:
             atom_map=[(int(p), int(c)) for p, c in amap], edit=edit, score=kid.score,
             explanation=expl, accepted=accepted)
 
-    def _policy_metrics(self, gen: int, kids: List[Individual], accepted: List[Individual], ops: Operators) -> PolicyMetrics:
+    def _policy_metrics(self, gen: int, kids: List[Individual], accepted: List[Individual], ops: Operators,
+                        rej_reasons: Optional[Dict[str, int]] = None) -> PolicyMetrics:
         muts = [k for k in kids if k.edit.chosen_by in ("policy", "random")]
         reward = lambda k: k.composite - k.parent.composite  # noqa: E731
         pol = [reward(k) for k in muts if k.edit.chosen_by == "policy"]
         rnd = [reward(k) for k in muts if k.edit.chosen_by == "random"]
         notes = []
+        if rej_reasons:
+            parts = ", ".join(f"{k} {v}" for k, v in sorted(rej_reasons.items(), key=lambda kv: (-kv[1], kv[0])))
+            notes.append(f"rejected {sum(rej_reasons.values())}: {parts}")
         if not kids:
             notes.append("no valid new children this generation")
         transitions = [(k.parent.smiles, k.edit_op, tuple(k.edit.site), k.smiles, reward(k))
