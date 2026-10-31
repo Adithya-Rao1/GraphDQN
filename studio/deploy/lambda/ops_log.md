@@ -37,3 +37,8 @@ Every remote command run by the lambda-ops worker. No secrets involved. Times ar
 - `run_all.sh start` -> tmux dbsvc (:8100) + studio-api (:8000, `uvicorn studio.server.app:app`). `healthcheck.sh`: studio-api OK (engine_source live), GET / returns the studio HTML page, dynamicbind OK.
 - Throwaway test instance on :8101 with DB_MAX_QUEUE=0 (killed by `timeout 40`): novel SMILES -> 429, bad SMILES -> 422, unknown target -> 404, precomputed hit still served -> proves cache hits bypass queue/GPU.
 - Precomputed hit latency measured on :8100: 22 ms (no GPU).
+
+## 2. DynamicBind precompute (final)
+- `precompute_poses.py` finished: 5 targets, 21 drugs, 0 failures (batch wall: abl1 154 s/5, braf 93 s/3, egfr 96 s/4, fxa 98 s/4, hiv1_protease 103 s/5). Output rsynced to studio/data/precomputed_poses/ (6.7 MB) in this branch.
+- Final healthcheck: studio-api OK, studio page OK, dynamicbind OK. Tunnel NOT started (a pre-existing system cloudflared, pid 2232, runs with /etc/cloudflared/config.yml and was left alone). No firewall changes, no new instances.
+- Box disk: 58 GB used / 439 GB free. micromamba 8.7G, studio-venv 6.4G, HF cache 6.0G, DynamicBind runs 327M.
