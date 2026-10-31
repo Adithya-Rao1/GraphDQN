@@ -4,29 +4,122 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Metis Lead Studio</title>
-<style>
-  :root { --bg:#0d1117; --fg:#e6edf3; --muted:#8b949e; --card:#161b22; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 -apple-system,Helvetica,Arial,sans-serif; padding:16px; }
-  pre { background:var(--card); padding:12px; border-radius:8px; max-height:60vh; overflow:auto; }
-  .muted { color:var(--muted); }
-</style>
+<script>
+  // dark is the default (projector); an explicit saved choice wins
+  try { document.documentElement.dataset.theme = localStorage.getItem("metis-theme") || "dark"; } catch (e) { document.documentElement.dataset.theme = "dark"; }
+</script>
+<link rel="stylesheet" href="css/app.css">
+<!-- 3Dmol.js 2.5.3 from cdnjs (pinned, SRI); vendor/3Dmol-min.js is the same file, used when the CDN is unreachable. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/3Dmol/2.5.3/3Dmol-min.js"
+        integrity="sha512-MvPSUXDx79leVqN1wGTdaRoGjRC8cqwxPvMmN5i1D7tYqcSIFR0QY4/oG3bP25C33UyiNfQ75hFKEPFKx8wK6Q=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+  if (!window.$3Dmol) document.write('<script src="vendor/3Dmol-min.js"><\/script>');
+</script>
 </head>
 <body>
-  <h1>Metis Lead Studio</h1>
-  <p class="muted">Wave 0 placeholder (owner: viewer agents replace this page). Streams the mock run to prove the SSE path.</p>
-  <button id="go">Run mock</button>
-  <pre id="log"></pre>
-<script>
-document.getElementById("go").onclick = async () => {
-  const log = document.getElementById("log"); log.textContent = "";
-  const r = await fetch("/api/runs", {method:"POST", headers:{"Content-Type":"application/json"},
-    body: JSON.stringify({seed_smiles:"CCOC(=O)c1ccc(cc1)[N+](=O)[O-]"})});
-  const {run_id} = await r.json();
-  const es = new EventSource(`/api/runs/${run_id}/events?delay=0.3`);
-  for (const t of ["run_start","generation","candidate","policy_metrics","run_end","error"]) {
-    es.addEventListener(t, e => { const ev = JSON.parse(e.data); log.textContent += `#${ev.seq} ${ev.type}\n`; if (t==="run_end") es.close(); });
-  }
-};
-</script>
+<div class="app" id="app">
+  <header class="topbar">
+    <div class="brand"><span class="logo" aria-hidden="true"></span><span class="name">Metis Lead Studio</span></div>
+    <div class="status" id="status" role="status" aria-live="polite">Ready</div>
+    <span class="source-badge" id="source-badge" hidden></span>
+    <div class="spacer"></div>
+    <button class="btn" id="btn-export" title="Save the current view as PNG (S)">Save PNG</button>
+    <button class="btn ghost" id="btn-theme" title="Toggle light / dark">Theme</button>
+  </header>
+
+  <main class="main">
+    <section class="stage-col">
+      <div class="stage-wrap" id="stage-wrap">
+        <div class="stage" id="stage"></div>
+        <canvas class="stage-fx" id="stage-fx"></canvas>
+        <div class="stage-hud tl" id="hud-title"></div>
+        <div class="stage-hud tr" id="hud-legend"></div>
+        <div class="stage-hud bl" id="hud-hint"></div>
+        <div class="stage-hud br" id="hud-perf" hidden></div>
+        <div class="stage-empty" id="stage-empty">
+          <div class="big">Drop a molecule to begin</div>
+          <div class="small">Paste a SMILES or drop a MOL / SDF file in the panel on the right.</div>
+        </div>
+      </div>
+
+      <div class="timeline" id="timeline" aria-label="Timeline">
+        <div class="tl-controls">
+          <button class="icon-btn" id="tl-prev" title="Previous edit (←)" aria-label="Previous edit">&#9198;</button>
+          <button class="icon-btn play" id="tl-play" title="Play / pause (Space)" aria-label="Play">&#9654;</button>
+          <button class="icon-btn" id="tl-next" title="Next edit (→)" aria-label="Next edit">&#9197;</button>
+          <div class="seg" id="tl-speed" role="group" aria-label="Speed">
+            <button data-speed="0.5">0.5×</button><button data-speed="1" class="on">1×</button><button data-speed="2">2×</button><button data-speed="4">4×</button>
+          </div>
+          <div class="seg" id="tl-filter" role="group" aria-label="Which candidates to play">
+            <button data-filter="accepted" class="on" title="Only edits that survived selection">Accepted</button><button data-filter="all" title="Every candidate">All</button>
+          </div>
+          <div class="tl-info" id="tl-info"></div>
+          <button class="btn small" id="tl-latest" hidden>Skip to latest</button>
+        </div>
+        <div class="tl-track" id="tl-track" tabindex="0" role="slider" aria-label="Scrub timeline">
+          <div class="tl-segs" id="tl-segs"></div>
+          <div class="tl-head" id="tl-head"></div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="side" id="side">
+      <section class="card start" id="card-start">
+        <h2>Molecule</h2>
+        <div class="row">
+          <input id="smiles" class="text" type="text" spellcheck="false" autocomplete="off" placeholder="SMILES, e.g. CCOC(=O)c1ccc(cc1)[N+](=O)[O-]" aria-label="SMILES">
+          <button class="btn" id="btn-validate">Check</button>
+        </div>
+        <div class="drop" id="drop" tabindex="0">
+          <span>or drop a <b>.mol</b> / <b>.sdf</b> file here</span>
+          <input id="file" type="file" accept=".mol,.sdf,.sd,.mdl,chemical/x-mdl-molfile,chemical/x-mdl-sdfile" hidden>
+        </div>
+        <div class="msg" id="validate-msg" role="alert" hidden></div>
+        <div class="valid" id="valid-info" hidden></div>
+        <details class="settings">
+          <summary>Run settings</summary>
+          <div class="grid2">
+            <label>Generations<input id="cfg-gens" class="text num" type="number" min="1" max="50" value="10"></label>
+            <label>Population<input id="cfg-pop" class="text num" type="number" min="2" max="100" value="20"></label>
+            <label>RNG seed<input id="cfg-seed" class="text num" type="number" value="0"></label>
+            <label>Policy guidance <output id="cfg-guid-out">0.50</output><input id="cfg-guid" type="range" min="0" max="1" step="0.05" value="0.5"></label>
+          </div>
+        </details>
+        <div class="row end">
+          <button class="btn ghost" id="btn-mock" hidden>Replay mock run</button>
+          <button class="btn primary" id="btn-run" disabled>Evolve</button>
+        </div>
+        <div class="lock-note" id="lock-note" hidden></div>
+      </section>
+
+      <section class="card why" id="card-why">
+        <div id="why-body"><p class="muted">Edits will be explained here as the run plays.</p></div>
+      </section>
+
+      <section class="card overlays" id="card-overlays">
+        <h2>View</h2>
+        <div class="seg wide" id="ov-color" role="group" aria-label="Atom colouring">
+          <button data-mode="element" class="on">Element</button>
+          <button data-mode="logp" title="Crippen logP contribution per atom">Hydrophobicity</button>
+          <button data-mode="charge" title="Gasteiger partial charge per atom">Charge</button>
+        </div>
+        <div class="legend" id="ov-legend" hidden></div>
+        <label class="check"><input type="checkbox" id="ov-alerts" checked> Structural-alert halos</label>
+        <label class="check"><input type="checkbox" id="ov-highlight" checked> Keep edit glow</label>
+        <label class="check"><input type="checkbox" id="ov-spin" checked> Auto-rotate</label>
+      </section>
+    </aside>
+  </main>
+
+  <!-- Wave-2 mount points. They stay hidden until a panel puts content inside (see README.md). -->
+  <section class="analysis" id="analysis">
+    <section class="mount" id="panel-lineage"></section>
+    <section class="mount" id="panel-charts"></section>
+    <section class="mount" id="panel-map"></section>
+    <section class="mount" id="panel-story"></section>
+  </section>
+</div>
+<script type="module" src="js/main.js"></script>
 </body>
 </html>
