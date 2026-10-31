@@ -1,0 +1,385 @@
+{
+ "note": "measured with the real engine; chains may include similarity-gated BRICS crossover steps",
+ "seeds": [
+  {
+   "id": "nitroaromatic",
+   "seed_smiles": "CCOC(=O)c1ccc([N+](=O)[O-])cc1",
+   "goal": "remove toxic alerts",
+   "final_smiles": "CCOc1c(Cl)ccc(S(C)(=O)=O)c1C(=O)O",
+   "alerts_before_after": [
+    2,
+    0
+   ],
+   "alert_names_before": [
+    "nitro_group",
+    "Oxygen-nitrogen_single_bond"
+   ],
+   "alert_names_after": [],
+   "qed_before_after": [
+    0.418,
+    0.909
+   ],
+   "composite_before_after": [
+    0.246,
+    0.904
+   ],
+   "edit_chain": [
+    {
+     "edit_id": "fg_nitro_to_amino",
+     "from": "CCOC(=O)c1ccc([N+](=O)[O-])cc1",
+     "to": "CCOC(=O)c1ccc(N)cc1"
+    },
+    {
+     "edit_id": "fg_add_methyl",
+     "from": "CCOC(=O)c1ccc(N)cc1",
+     "to": "CCOC(=O)c1ccc(N)cc1C"
+    },
+    {
+     "edit_id": "atom_sub_cl",
+     "from": "CCOC(=O)c1ccc(N)cc1C",
+     "to": "CCOC(=O)c1ccc(N)cc1Cl"
+    },
+    {
+     "edit_id": "fg_remove_amino",
+     "from": "CCOC(=O)c1ccc(N)cc1Cl",
+     "to": "CCOC(=O)c1ccccc1Cl"
+    },
+    {
+     "edit_id": "fg_add_carboxyl",
+     "from": "CCOC(=O)c1ccccc1Cl",
+     "to": "CCOC(=O)c1c(Cl)cccc1C(=O)O"
+    },
+    {
+     "edit_id": "fg_add_sulfone",
+     "from": "CCOC(=O)c1c(Cl)cccc1C(=O)O",
+     "to": "CCOC(=O)c1c(Cl)ccc(S(C)(=O)=O)c1C(=O)O"
+    },
+    {
+     "edit_id": "brics_crossover",
+     "from": "CCOC(=O)c1c(Cl)ccc(S(C)(=O)=O)c1C(=O)O",
+     "to": "CCOc1c(Cl)ccc(S(C)(=O)=O)c1C(=O)O"
+    }
+   ],
+   "rejected_by_reason": {
+    "crossover_far": 45,
+    "bad_pattern": 19
+   },
+   "seconds": 73.2,
+   "engine_improved": true,
+   "run": "population 20, generations 10, rng_seed 0, studio.wiring.build_engine, demo-safe on"
+  },
+  {
+   "id": "lipophilic_biaryl",
+   "seed_smiles": "CC(C)(C)c1ccc(-c2ccc(-c3ccc(Cl)cc3)cc2)cc1",
+   "goal": "more soluble",
+   "final_smiles": "COCC(C)(CN)c1cc(C(C)(C)CN)cc(C#N)c1Cl",
+   "alerts_before_after": [
+    0,
+    0
+   ],
+   "alert_names_before": [],
+   "alert_names_after": [],
+   "qed_before_after": [
+    0.478,
+    0.844
+   ],
+   "composite_before_after": [
+    0.145,
+    0.962
+   ],
+   "edit_chain": [
+    {
+     "edit_id": "fg_add_carboxyl",
+     "from": "CC(C)(C)c1ccc(-c2ccc(-c3ccc(Cl)cc3)cc2)cc1",
+     "to": "CC(C)(C)c1ccc(-c2ccc(-c3ccc(Cl)c(C(=O)O)c3)cc2)cc1"
+    },
+    {
+     "edit_id": "fg_add_sulfone",
+     "from": "CC(C)(C)c1ccc(-c2ccc(-c3ccc(Cl)c(C(=O)O)c3)cc2)cc1",
+     "to": "CC(C)(C)c1ccc(-c2ccc(-c3ccc(Cl)c(C(=O)O)c3)cc2)cc1S(C)(=O)=O"
+    },
+    {
+     "edit_id": "brics_crossover",
+     "from": "CC(C)(C)c1ccc(-c2ccc(-c3ccc(Cl)c(C(=O)O)c3)cc2)cc1S(C)(=O)=O",
+     "to": "CC(C)(C)c1ccc(Cl)c(C(=O)O)c1"
+    },
+    {
+     "edit_id": "fg_add_amino",
+     "from": "CC(C)(C)c1ccc(Cl)c(C(=O)O)c1",
+     "to": "CC(C)(CN)c1ccc(Cl)c(C(=O)O)c1"
+    },
+    {
+     "edit_id": "fg_add_cyano",
+     "from": "CC(C)(CN)c1ccc(Cl)c(C(=O)O)c1",
+     "to": "CC(C)(CN)c1cc(C#N)c(Cl)c(C(=O)O)c1"
+    },
+    {
+     "edit_id": "brics_crossover",
+     "from": "CC(C)(CN)c1cc(C#N)c(Cl)c(C(=O)O)c1",
+     "to": "CC(C)(CN)c1cc(C#N)c(Cl)c(C(C)(C)CN)c1"
+    },
+    {
+     "edit_id": "fg_add_ether",
+     "from": "CC(C)(CN)c1cc(C#N)c(Cl)c(C(C)(C)CN)c1",
+     "to": "COCC(C)(CN)c1cc(C(C)(C)CN)cc(C#N)c1Cl"
+    }
+   ],
+   "rejected_by_reason": {
+    "crossover_far": 58,
+    "bad_pattern": 22
+   },
+   "seconds": 55.1,
+   "engine_improved": true,
+   "run": "population 20, generations 10, rng_seed 0, studio.wiring.build_engine, demo-safe on"
+  },
+  {
+   "id": "labile_ester",
+   "seed_smiles": "CCOC(=O)c1ccc(OC(C)=O)cc1",
+   "goal": "remove toxic alerts",
+   "final_smiles": "CC(C)Oc1ccc(-c2ccc(C(=O)O)c(C#N)c2)c(C#N)c1",
+   "alerts_before_after": [
+    1,
+    0
+   ],
+   "alert_names_before": [
+    "phenol_ester"
+   ],
+   "alert_names_after": [],
+   "qed_before_after": [
+    0.561,
+    0.931
+   ],
+   "composite_before_after": [
+    0.565,
+    0.905
+   ],
+   "edit_chain": [
+    {
+     "edit_id": "fg_add_carboxyl",
+     "from": "CCOC(=O)c1ccc(OC(C)=O)cc1",
+     "to": "CCOC(=O)c1ccc(OC(C)=O)cc1C(=O)O"
+    },
+    {
+     "edit_id": "fg_add_methyl",
+     "from": "CCOC(=O)c1ccc(OC(C)=O)cc1C(=O)O",
+     "to": "CC(=O)Oc1ccc(C(=O)OC(C)C)c(C(=O)O)c1"
+    },
+    {
+     "edit_id": "brics_crossover",
+     "from": "CC(=O)Oc1ccc(C(=O)OC(C)C)c(C(=O)O)c1",
+     "to": "CC(C)Oc1ccc(C(=O)O)c(C(=O)O)c1"
+    },
+    {
+     "edit_id": "brics_crossover",
+     "from": "CC(C)Oc1ccc(C(=O)O)c(C(=O)O)c1",
+     "to": "CC(C)Oc1ccc(-c2ccc(C(=O)O)c(C#N)c2)c(C#N)c1"
+    }
+   ],
+   "rejected_by_reason": {
+    "crossover_far": 46,
+    "bad_pattern": 22
+   },
+   "seconds": 242.5,
+   "engine_improved": true,
+   "run": "population 20, generations 10, rng_seed 0, studio.wiring.build_engine, demo-safe on"
+  },
+  {
+   "id": "catechol",
+   "seed_smiles": "CC(N)Cc1ccc(O)c(O)c1",
+   "goal": "remove toxic alerts",
+   "final_smiles": "CC(=O)N(C)c1cc(O)c(Cl)cc1S(=O)(=O)CF",
+   "alerts_before_after": [
+    2,
+    0
+   ],
+   "alert_names_before": [
+    "catechol_A(92)",
+    "catechol"
+   ],
+   "alert_names_after": [],
+   "qed_before_after": [
+    0.575,
+    0.921
+   ],
+   "composite_before_after": [
+    0.272,
+    0.905
+   ],
+   "edit_chain": [
+    {
+     "edit_id": "fg_add_sulfone",
+     "from": "CC(N)Cc1ccc(O)c(O)c1",
+     "to": "CC(N)Cc1cc(O)c(O)cc1S(C)(=O)=O"
+    },
+    {
+     "edit_id": "atom_sub_cl",
+     "from": "CC(N)Cc1cc(O)c(O)cc1S(C)(=O)=O",
+     "to": "CC(N)Cc1cc(O)c(Cl)cc1S(C)(=O)=O"
+    },
+    {
+     "edit_id": "fg_add_methyl",
+     "from": "CC(N)Cc1cc(O)c(Cl)cc1S(C)(=O)=O",
+     "to": "CNC(C)Cc1cc(O)c(Cl)cc1S(C)(=O)=O"
+    },
+    {
+     "edit_id": "fg_add_ketone",
+     "from": "CNC(C)Cc1cc(O)c(Cl)cc1S(C)(=O)=O",
+     "to": "CC(=O)N(C)C(C)Cc1cc(O)c(Cl)cc1S(C)(=O)=O"
+    },
+    {
+     "edit_id": "brics_crossover",
+     "from": "CC(=O)N(C)C(C)Cc1cc(O)c(Cl)cc1S(C)(=O)=O",
+     "to": "CC(=O)N(C)c1cc(O)c(Cl)cc1S(C)(=O)=O"
+    },
+    {
+     "edit_id": "fg_add_cyano",
+     "from": "CC(=O)N(C)c1cc(O)c(Cl)cc1S(C)(=O)=O",
+     "to": "CC(=O)N(C)c1c(S(C)(=O)=O)cc(Cl)c(O)c1C#N"
+    },
+    {
+     "edit_id": "atom_add_f",
+     "from": "CC(=O)N(C)c1c(S(C)(=O)=O)cc(Cl)c(O)c1C#N",
+     "to": "CC(=O)N(C)c1c(S(=O)(=O)CF)cc(Cl)c(O)c1C#N"
+    },
+    {
+     "edit_id": "fg_remove_cyano",
+     "from": "CC(=O)N(C)c1c(S(=O)(=O)CF)cc(Cl)c(O)c1C#N",
+     "to": "CC(=O)N(C)c1cc(O)c(Cl)cc1S(=O)(=O)CF"
+    }
+   ],
+   "rejected_by_reason": {
+    "bad_pattern": 16,
+    "crossover_far": 40
+   },
+   "seconds": 30.3,
+   "engine_improved": true,
+   "run": "population 20, generations 10, rng_seed 0, studio.wiring.build_engine, demo-safe on"
+  },
+  {
+   "id": "ro5_violator",
+   "seed_smiles": "CCCCCCCCCCCCCC=CC(O)C(CO)NC(=O)CCCCCCCCCCCCCCC",
+   "goal": "more drug-like",
+   "final_smiles": "CCC(N)CCCCCCCCCCCCNCCCCCCCCCCCCC(N)CC",
+   "alerts_before_after": [
+    4,
+    3
+   ],
+   "alert_names_before": [
+    "Aliphatic_long_chain",
+    "isolated_alkene",
+    "gte_10_carbon_sb_chain",
+    "gte_8_CF2_or_CH2"
+   ],
+   "alert_names_after": [
+    "Aliphatic_long_chain",
+    "gte_10_carbon_sb_chain",
+    "gte_8_CF2_or_CH2"
+   ],
+   "qed_before_after": [
+    0.063,
+    0.101
+   ],
+   "composite_before_after": [
+    0.232,
+    0.375
+   ],
+   "edit_chain": [
+    {
+     "edit_id": "fg_add_amino",
+     "from": "CCCCCCCCCCCCCC=CC(O)C(CO)NC(=O)CCCCCCCCCCCCCCC",
+     "to": "CCCCCCCCCCCCCC=CC(O)C(CO)NC(=O)CCCCCCCCCCCCC(N)CC"
+    },
+    {
+     "edit_id": "brics_crossover",
+     "from": "CCCCCCCCCCCCCC=CC(O)C(CO)NC(=O)CCCCCCCCCCCCC(N)CC",
+     "to": "CCCCCCCCCCCCCCCC(=O)NC(=O)CCCCCCCCCCCCC(N)CC"
+    },
+    {
+     "edit_id": "bio_amide_to_retroamide",
+     "from": "CCCCCCCCCCCCCCCC(=O)NC(=O)CCCCCCCCCCCCC(N)CC",
+     "to": "CCCCCCCCCCCCCCCC(=O)C(=O)NCCCCCCCCCCCCC(N)CC"
+    },
+    {
+     "edit_id": "fg_add_methyl",
+     "from": "CCCCCCCCCCCCCCCC(=O)C(=O)NCCCCCCCCCCCCC(N)CC",
+     "to": "CCCCCCCCCCCCC(C)CCC(=O)C(=O)NCCCCCCCCCCCCC(N)CC"
+    },
+    {
+     "edit_id": "brics_crossover",
+     "from": "CCCCCCCCCCCCC(C)CCC(=O)C(=O)NCCCCCCCCCCCCC(N)CC",
+     "to": "CCCCCCCCCCCCC(N)CCC(=O)NCCCCCCCCCCCCC(N)CC"
+    },
+    {
+     "edit_id": "brics_crossover",
+     "from": "CCCCCCCCCCCCC(N)CCC(=O)NCCCCCCCCCCCCC(N)CC",
+     "to": "CCC(N)CCCCCCCCCCCCNCCCCCCCCCCCCC(N)CC"
+    }
+   ],
+   "rejected_by_reason": {
+    "crossover_far": 14,
+    "bad_pattern": 2
+   },
+   "seconds": 176.4,
+   "engine_improved": true,
+   "run": "population 20, generations 10, rng_seed 0, studio.wiring.build_engine, demo-safe on"
+  },
+  {
+   "id": "aniline",
+   "seed_smiles": "Nc1ccc(Cc2ccc(N)cc2)cc1",
+   "goal": "remove toxic alerts",
+   "final_smiles": "COc1c(Cl)cccc1C(C#N)c1ccc(C(N)=O)cc1",
+   "alerts_before_after": [
+    3,
+    0
+   ],
+   "alert_names_before": [
+    "anil_no_alk(40)",
+    "anil_di_alk_F(14)",
+    "aniline"
+   ],
+   "alert_names_after": [],
+   "qed_before_after": [
+    0.728,
+    0.942
+   ],
+   "composite_before_after": [
+    0.239,
+    0.905
+   ],
+   "edit_chain": [
+    {
+     "edit_id": "fg_remove_amino",
+     "from": "Nc1ccc(Cc2ccc(N)cc2)cc1",
+     "to": "Nc1ccc(Cc2ccccc2)cc1"
+    },
+    {
+     "edit_id": "fg_add_ether",
+     "from": "Nc1ccc(Cc2ccccc2)cc1",
+     "to": "COc1ccccc1Cc1ccc(N)cc1"
+    },
+    {
+     "edit_id": "fg_amino_to_amide",
+     "from": "COc1ccccc1Cc1ccc(N)cc1",
+     "to": "COc1ccccc1Cc1ccc(C(N)=O)cc1"
+    },
+    {
+     "edit_id": "fg_add_cyano",
+     "from": "COc1ccccc1Cc1ccc(C(N)=O)cc1",
+     "to": "COc1ccccc1C(C#N)c1ccc(C(N)=O)cc1"
+    },
+    {
+     "edit_id": "fg_add_halogen",
+     "from": "COc1ccccc1C(C#N)c1ccc(C(N)=O)cc1",
+     "to": "COc1c(Cl)cccc1C(C#N)c1ccc(C(N)=O)cc1"
+    }
+   ],
+   "rejected_by_reason": {
+    "crossover_far": 57,
+    "bad_pattern": 15
+   },
+   "seconds": 245.7,
+   "engine_improved": true,
+   "run": "population 20, generations 10, rng_seed 0, studio.wiring.build_engine, demo-safe on"
+  }
+ ]
+}

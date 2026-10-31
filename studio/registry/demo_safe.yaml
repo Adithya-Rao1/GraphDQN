@@ -1,0 +1,87 @@
+# Which ops are shown by default in the live demo. demo_safe=false ops are hidden unless STUDIO_ALL_EDITS=1.
+# Conservative: only edits a medicinal chemist would recognise (bioisosteres, functional-group interconversions,
+# polarity/halogen tuning). Keys must match ids in ops.py / edits.yaml (checked on load).
+ops:
+  - {id: atom_sub_c, demo_safe: false, reason: "arbitrary heteroatom->C swap, not a named med-chem transformation"}
+  - {id: atom_sub_n, demo_safe: false, reason: "arbitrary heavy-atom swap (can break carbonyl/nitro/ether groups)"}
+  - {id: atom_sub_o, demo_safe: false, reason: "arbitrary heavy-atom swap (can break carbonyl/nitro/amine groups)"}
+  - {id: atom_sub_s, demo_safe: false, reason: "swap to sulfur adds structural alerts and is rarely a deliberate edit"}
+  - {id: atom_sub_p, demo_safe: false, reason: "phosphorus is exotic for leads"}
+  - {id: atom_sub_f, demo_safe: true, reason: "X->F caps a position; OH/H->F is a recognised halogen-tuning move"}
+  - {id: atom_sub_cl, demo_safe: true, reason: "X->Cl halogen tuning at a terminal site"}
+  - {id: atom_sub_br, demo_safe: false, reason: "bromine adds MW/logP and is rarely wanted in leads"}
+  - {id: atom_sub_i, demo_safe: false, reason: "iodine is exotic for leads"}
+  - {id: atom_sub_b, demo_safe: false, reason: "boron is exotic"}
+  - {id: atom_sub_si, demo_safe: false, reason: "silicon swap is exotic"}
+  - {id: atom_add_c, demo_safe: false, reason: "raw chain extension; fg_add_methyl covers the recognisable case"}
+  - {id: atom_add_n, demo_safe: false, reason: "attaches N anywhere; fg_add_amino covers the recognisable case"}
+  - {id: atom_add_o, demo_safe: false, reason: "attaches O anywhere; fg_add_hydroxyl covers the recognisable case"}
+  - {id: atom_add_s, demo_safe: false, reason: "adds sulfur/alerts, rarely deliberate"}
+  - {id: atom_add_p, demo_safe: false, reason: "phosphorus is exotic"}
+  - {id: atom_add_f, demo_safe: true, reason: "adding F on a C-H is a standard metabolic-block / logP tuning edit"}
+  - {id: atom_add_cl, demo_safe: true, reason: "adding Cl on a C-H is standard halogen tuning"}
+  - {id: atom_add_br, demo_safe: false, reason: "bromine adds MW/logP, rarely wanted in leads"}
+  - {id: atom_add_i, demo_safe: false, reason: "iodine is exotic"}
+  - {id: atom_add_b, demo_safe: false, reason: "boron is exotic"}
+  - {id: atom_add_si, demo_safe: false, reason: "silicon is exotic"}
+  - {id: atom_remove, demo_safe: false, reason: "deleting an arbitrary atom is not a named transformation; fg_remove_* cover recognised cases"}
+  - {id: bond_add_single, demo_safe: false, reason: "ring closure at arbitrary atoms is rarely synthetically or chemically sensible"}
+  - {id: bond_add_double, demo_safe: false, reason: "ring closure at arbitrary atoms is rarely synthetically or chemically sensible"}
+  - {id: bond_add_triple, demo_safe: false, reason: "ring closure at arbitrary atoms is rarely synthetically or chemically sensible"}
+  - {id: bond_add_aromatic, demo_safe: false, reason: "ring closure at arbitrary atoms is rarely synthetically or chemically sensible"}
+  - {id: bond_remove, demo_safe: false, reason: "ring opening at an arbitrary bond is not a recognised med-chem edit"}
+  - {id: bond_to_single, demo_safe: false, reason: "arbitrary bond-order change breaks valence/aromaticity (e.g. charged N=O)"}
+  - {id: bond_to_double, demo_safe: false, reason: "arbitrary bond-order change breaks valence/aromaticity (e.g. charged N=O)"}
+  - {id: bond_to_triple, demo_safe: false, reason: "arbitrary bond-order change breaks valence/aromaticity (e.g. charged N=O)"}
+  - {id: bond_to_aromatic, demo_safe: false, reason: "arbitrary bond-order change breaks valence/aromaticity (e.g. charged N=O)"}
+  - {id: bio_acid_to_tetrazole, demo_safe: true, reason: "classic carboxylic acid isostere"}
+  - {id: bio_acid_to_phosphonic, demo_safe: false, reason: "rare, doubly ionisable, hurts permeability"}
+  - {id: bio_amine_to_pyridyl, demo_safe: false, reason: "not a recognised bioisostere in practice"}
+  - {id: bio_amide_to_sulfonamide, demo_safe: true, reason: "standard amide isostere"}
+  - {id: bio_amide_to_retroamide, demo_safe: true, reason: "recognised retro-amide / H-bond vector flip"}
+  - {id: bio_phenyl_to_pyridyl, demo_safe: true, reason: "textbook solubility-tuning swap"}
+  - {id: bio_phenyl_to_thiophene, demo_safe: true, reason: "classical aromatic ring isostere"}
+  - {id: bio_phenyl_to_furan, demo_safe: false, reason: "furan is a metabolic-activation alert risk"}
+  - {id: bio_phenyl_to_pyrrole, demo_safe: false, reason: "electron-rich, oxidation-prone; rarely chosen"}
+  - {id: fg_remove_methyl, demo_safe: true, reason: "removing a methyl is common SAR trimming"}
+  - {id: fg_remove_hydroxyl, demo_safe: true, reason: "deoxygenation lowers polarity"}
+  - {id: fg_remove_amino, demo_safe: true, reason: "removes a donor/basic centre"}
+  - {id: fg_remove_carboxyl, demo_safe: true, reason: "removes an ionisable acid"}
+  - {id: fg_remove_carbonyl, demo_safe: false, reason: "bare C=O removal is not a recognisable transformation"}
+  - {id: fg_remove_aldehyde, demo_safe: true, reason: "clears a reactive aldehyde"}
+  - {id: fg_remove_ketone, demo_safe: false, reason: "ketone removal alters the scaffold arbitrarily"}
+  - {id: fg_remove_ether, demo_safe: false, reason: "ether removal alters the scaffold arbitrarily"}
+  - {id: fg_remove_ester, demo_safe: true, reason: "removes a hydrolytically labile group"}
+  - {id: fg_remove_amide, demo_safe: true, reason: "trims polarity/MW"}
+  - {id: fg_remove_nitro, demo_safe: true, reason: "clears the nitroaromatic alert"}
+  - {id: fg_remove_cyano, demo_safe: true, reason: "simple polarity trimming"}
+  - {id: fg_remove_thiol, demo_safe: true, reason: "clears a reactive thiol"}
+  - {id: fg_remove_halogen, demo_safe: true, reason: "standard halogen tuning"}
+  - {id: fg_remove_azide, demo_safe: true, reason: "clears an energetic alert"}
+  - {id: fg_remove_sulfonamide, demo_safe: true, reason: "removes a polar group"}
+  - {id: fg_hydroxyl_to_amino, demo_safe: true, reason: "OH/NH2 interconversion is standard"}
+  - {id: fg_hydroxyl_to_thiol, demo_safe: false, reason: "introduces a reactive thiol alert"}
+  - {id: fg_hydroxyl_to_methyl, demo_safe: true, reason: "OH->Me polarity tuning"}
+  - {id: fg_hydroxyl_to_halogen, demo_safe: true, reason: "OH->Cl/F is a classic isostere"}
+  - {id: fg_amino_to_hydroxyl, demo_safe: true, reason: "NH2/OH interconversion is standard"}
+  - {id: fg_amino_to_amide, demo_safe: true, reason: "amine acylation is a routine interconversion"}
+  - {id: fg_carboxyl_to_ester, demo_safe: true, reason: "esterification (prodrug/permeability)"}
+  - {id: fg_carboxyl_to_amide, demo_safe: true, reason: "acid->amide is routine"}
+  - {id: fg_aldehyde_to_ketone, demo_safe: true, reason: "reduces aldehyde reactivity"}
+  - {id: fg_aldehyde_to_carboxyl, demo_safe: true, reason: "oxidation to acid clears the alert"}
+  - {id: fg_thiol_to_hydroxyl, demo_safe: true, reason: "SH->OH clears a thiol"}
+  - {id: fg_cyano_to_carboxyl, demo_safe: true, reason: "nitrile hydrolysis, routine"}
+  - {id: fg_nitro_to_amino, demo_safe: true, reason: "nitro reduction, routine"}
+  - {id: fg_ester_to_carboxyl, demo_safe: true, reason: "ester hydrolysis, routine"}
+  - {id: fg_amide_to_carboxyl, demo_safe: true, reason: "amide hydrolysis to acid"}
+  - {id: fg_add_methyl, demo_safe: true, reason: "methylation (standard substituent addition)"}
+  - {id: fg_add_hydroxyl, demo_safe: true, reason: "adds a polar OH (standard substituent addition)"}
+  - {id: fg_add_amino, demo_safe: true, reason: "adds a polar NH2 (standard substituent addition)"}
+  - {id: fg_add_halogen, demo_safe: true, reason: "adds Cl (standard substituent addition)"}
+  - {id: fg_add_cyano, demo_safe: true, reason: "nitrile addition (standard substituent addition)"}
+  - {id: fg_add_carboxyl, demo_safe: true, reason: "adds an acid (standard substituent addition)"}
+  - {id: fg_add_ether, demo_safe: true, reason: "methoxy is a common substituent (standard substituent addition)"}
+  - {id: fg_add_ketone, demo_safe: true, reason: "acetyl is a common substituent (standard substituent addition)"}
+  - {id: fg_add_amide, demo_safe: true, reason: "carboxamide is a common substituent (standard substituent addition)"}
+  - {id: fg_add_sulfonamide, demo_safe: true, reason: "sulfonamide is a common substituent (standard substituent addition)"}
+  - {id: fg_add_sulfone, demo_safe: true, reason: "methylsulfone is a common substituent (standard substituent addition)"}
