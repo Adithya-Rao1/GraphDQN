@@ -74,7 +74,7 @@ def applicable_list(smiles):
     return out
 
 
-def build_manual(depth=2, branch=4, per_mol=40):
+def build_manual(depth=2, branch=4, per_mol=60):
     seed_block, seed_mol = geometry.embed_3d(SEED)
     fx = {"seed": {"smiles": SEED, "molblock": seed_block, "score": scorer.score(SEED, RunConfig(seed_smiles=SEED)).model_dump(mode="json")},
           "applicable": {}, "previews": {}}
@@ -82,18 +82,20 @@ def build_manual(depth=2, branch=4, per_mol=40):
     for d in range(depth):
         nxt = []
         for smi, mol in frontier:
-            lst = applicable_list(smi)[:per_mol]
-            fx["applicable"][smi] = lst
-            made = 0
-            for a in lst:
+            lst, made = [], 0
+            for a in applicable_list(smi):
+                if len(lst) >= per_mol:
+                    break
                 r = preview(smi, mol, reg.get(a["edit_id"]), a["site"])
-                if r is None:
+                if r is None:  # the registry lists the site but the edit yields no valid product: leave it out of the fixture
                     continue
+                lst.append(a)
                 pv, cmol = r
                 fx["previews"][f'{smi}|{a["edit_id"]}|{",".join(map(str, a["site"]))}'] = pv
                 if d + 1 < depth and made < branch and pv["child_smiles"] not in {s for s, _ in nxt}:
                     nxt.append((pv["child_smiles"], cmol))
                     made += 1
+            fx["applicable"][smi] = lst
         frontier = nxt
     (HERE / "manual_fixture.json").write_text(json.dumps(fx))
     print("manual: molecules", len(fx["applicable"]), "previews", len(fx["previews"]), "bytes", (HERE / "manual_fixture.json").stat().st_size)

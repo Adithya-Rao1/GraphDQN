@@ -20,7 +20,7 @@ export function init(ctx = window.metis) {
     loadingList: false, listError: null, collapsed: false, error: null, logLabel: "", logNote: "" };
   const listCache = new Map(); // `${smiles}|${locked}` -> normalized list
   const inflight = new Map();
-  let overlay = null, ghost = null, dock = null, what = null, stepsEl = null, token = 0, hoverTimer = 0, busy = false, unsubs = [], moved = false;
+  let overlay = null, ghost = null, dock = null, main = null, what = null, stepsEl = null, token = 0, hoverTimer = 0, busy = false, unsubs = [], moved = false;
 
   // ------------------------------------------------------------------ DOM
   function build() {
@@ -28,11 +28,14 @@ export function init(ctx = window.metis) {
     dock = document.createElement("aside");
     dock.className = "mdock";
     dock.setAttribute("aria-label", "Manual edit panel");
+    main = document.createElement("div");
+    main.className = "md-main";
     what = document.createElement("div");
     what.className = "mwhat";
     what.hidden = true;
     what.setAttribute("aria-live", "polite");
-    wrap.append(dock, what);
+    dock.append(main, what);
+    wrap.append(dock);
     stepsEl = document.createElement("div");
     stepsEl.className = "msteps-host";
     overlay = new ManualOverlay({ stage, wrap });
@@ -55,15 +58,16 @@ export function init(ctx = window.metis) {
     // wide screens: floating panels over the stage; narrow: below it, inside the manual mount
     const host = isMobile() && mount ? mount : wrap;
     dock.classList.toggle("static", host !== wrap);
-    what.classList.toggle("static", host !== wrap);
-    if (host === wrap) wrap.append(dock, what); else mount.prepend(what), mount.prepend(dock);
+    document.body.classList.toggle("manual-docked", host === wrap);
+    if (host === wrap) wrap.append(dock); else mount.prepend(dock);
     if (mount && !stepsEl.isConnected) mount.append(stepsEl);
   }
 
   function teardown() {
     window.removeEventListener("keydown", onKey);
-    dock?.remove(); what?.remove(); stepsEl?.remove(); overlay?.stop(); overlay?.canvas.remove(); ghost?.clear();
-    dock = what = stepsEl = overlay = ghost = null;
+    document.body.classList.remove("manual-docked");
+    dock?.remove(); stepsEl?.remove(); overlay?.stop(); overlay?.canvas.remove(); ghost?.clear();
+    dock = main = what = stepsEl = overlay = ghost = null;
   }
 
   const cur = () => m.session?.current;
@@ -85,9 +89,9 @@ export function init(ctx = window.metis) {
     m.logNote = m.session?.sessionId ? `session ${m.session.sessionId}` : "The server session could not be created; export falls back to a client-side file.";
     m.seed = store.seed && !m.session ? store.seed : m.seed;
     m.lead = !m.session && store.end && store.source !== "manual" ? store.candidates.find((c) => c.id === store.end.edit_path.at(-1)) || null : null;
-    const sc = dock.querySelector(".md-list")?.scrollTop;
-    dock.innerHTML = dockHtml(m);
-    const l = dock.querySelector(".md-list");
+    const sc = main.querySelector(".md-list")?.scrollTop;
+    main.innerHTML = dockHtml(m);
+    const l = main.querySelector(".md-list");
     if (l && sc) l.scrollTop = sc;
     overlay.selected = m.selected;
     overlay.locked = m.session?.locked || new Set();
@@ -354,9 +358,9 @@ export function init(ctx = window.metis) {
   function renderDockAfterSel() { leaveEdit(); renderDock(); }
 
   let down = null;
-  function onDown(ev) { if (!ev.target.closest(".mdock, .mwhat, .story-chip")) down = { x: ev.clientX, y: ev.clientY, t: performance.now() }; }
+  function onDown(ev) { if (!ev.target.closest(".mdock, .story-chip")) down = { x: ev.clientX, y: ev.clientY, t: performance.now() }; }
   function onMove(ev) {
-    if (!m.active || !m.session || ev.target.closest(".mdock, .mwhat")) return;
+    if (!m.active || !m.session || ev.target.closest(".mdock")) return;
     overlay.hover = ev.buttons ? -1 : overlay.pick(ev.clientX, ev.clientY);
     stage.host.style.cursor = overlay.hover >= 0 ? "pointer" : "";
   }
@@ -411,7 +415,7 @@ export function init(ctx = window.metis) {
   // integration points for ui-structure (any of them is enough)
   window.MetisStages?.onStageChange?.((stg) => (stg === "manual" ? activate() : deactivate()));
   bus.on("stage:change", (e) => ((e?.stage || e) === "manual" ? activate() : deactivate()));
-  const api2 = { activate, deactivate, start, undo, redo, exportJsonl, finish, get session() { return m.session; }, get active() { return m.active; } };
+  const api2 = { activate, deactivate, start, undo, redo, exportJsonl, finish, get session() { return m.session; }, get active() { return m.active; }, get _overlay() { return overlay; } };
   window.MetisManual = api2;
   return api2;
 }
