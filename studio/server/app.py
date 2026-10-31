@@ -247,6 +247,11 @@ def create_app(engine: Any = None, scorer: Any = None, settings: Optional[Settin
         install_accounts(app)
     except Exception as exc:
         log.info("accounts unavailable: %s", type(exc).__name__)
+    try:  # optional per-user policy adaptation
+        from studio.adapt.install import install as install_adapt
+        install_adapt(app)
+    except Exception as exc:
+        log.info("adapt unavailable: %s", type(exc).__name__)
 
     if WEB.exists():
         app.mount("/", StaticFiles(directory=WEB, html=True), name="web")

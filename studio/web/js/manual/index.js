@@ -84,6 +84,7 @@ export function init(ctx = window.metis) {
 
   function renderDock() {
     if (!dock) return;
+    if (m.session?.sessionId) bus.emit("manual:steps", { session_id: m.session.sessionId, steps: m.session.steps }); // adapt panel
     m.visible = visibleEdits();
     m.logLabel = logLabel();
     m.logNote = m.session?.sessionId ? `session ${m.session.sessionId}` : "The server session could not be created; export falls back to a client-side file.";
