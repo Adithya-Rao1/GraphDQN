@@ -1,0 +1,170 @@
+[
+ {
+  "target": "abl1",
+  "drug": "Imatinib",
+  "status": "done",
+  "pose_confidence": 0.65,
+  "affinity": 6.974161584695868,
+  "wall_s_batch": 154.5
+ },
+ {
+  "target": "abl1",
+  "drug": "Nilotinib",
+  "status": "done",
+  "pose_confidence": 0.63,
+  "affinity": 7.35701330337848,
+  "wall_s_batch": 154.5
+ },
+ {
+  "target": "abl1",
+  "drug": "Dasatinib",
+  "status": "done",
+  "pose_confidence": 0.72,
+  "affinity": 7.697173473818613,
+  "wall_s_batch": 154.5
+ },
+ {
+  "target": "abl1",
+  "drug": "Bosutinib",
+  "status": "done",
+  "pose_confidence": 0.67,
+  "affinity": 7.32562038754796,
+  "wall_s_batch": 154.5
+ },
+ {
+  "target": "abl1",
+  "drug": "Ponatinib",
+  "status": "done",
+  "pose_confidence": 0.67,
+  "affinity": 7.6095467304225926,
+  "wall_s_batch": 154.5
+ },
+ {
+  "target": "braf",
+  "drug": "Vemurafenib",
+  "status": "done",
+  "pose_confidence": 0.65,
+  "affinity": 8.258600296936017,
+  "wall_s_batch": 92.8
+ },
+ {
+  "target": "braf",
+  "drug": "Dabrafenib",
+  "status": "done",
+  "pose_confidence": 0.65,
+  "affinity": 8.329600609304496,
+  "wall_s_batch": 92.8
+ },
+ {
+  "target": "braf",
+  "drug": "Encorafenib",
+  "status": "done",
+  "pose_confidence": 0.67,
+  "affinity": 8.835778698253927,
+  "wall_s_batch": 92.8
+ },
+ {
+  "target": "egfr",
+  "drug": "Erlotinib",
+  "status": "done",
+  "pose_confidence": 0.66,
+  "affinity": 6.488493712318782,
+  "wall_s_batch": 96.4
+ },
+ {
+  "target": "egfr",
+  "drug": "Gefitinib",
+  "status": "done",
+  "pose_confidence": 0.67,
+  "affinity": 7.552726400967275,
+  "wall_s_batch": 96.4
+ },
+ {
+  "target": "egfr",
+  "drug": "Lapatinib",
+  "status": "done",
+  "pose_confidence": 0.64,
+  "affinity": 7.742337427857952,
+  "wall_s_batch": 96.4
+ },
+ {
+  "target": "egfr",
+  "drug": "Afatinib",
+  "status": "done",
+  "pose_confidence": 0.68,
+  "affinity": 7.779560293880297,
+  "wall_s_batch": 96.4
+ },
+ {
+  "target": "fxa",
+  "drug": "Apixaban",
+  "status": "done",
+  "pose_confidence": 0.68,
+  "affinity": 8.188577671458184,
+  "wall_s_batch": 98.1
+ },
+ {
+  "target": "fxa",
+  "drug": "Rivaroxaban",
+  "status": "done",
+  "pose_confidence": 0.72,
+  "affinity": 8.334681845403313,
+  "wall_s_batch": 98.1
+ },
+ {
+  "target": "fxa",
+  "drug": "Edoxaban",
+  "status": "done",
+  "pose_confidence": 0.69,
+  "affinity": 7.953998073664266,
+  "wall_s_batch": 98.1
+ },
+ {
+  "target": "fxa",
+  "drug": "Betrixaban",
+  "status": "done",
+  "pose_confidence": 0.71,
+  "affinity": 7.8469486961809425,
+  "wall_s_batch": 98.1
+ },
+ {
+  "target": "hiv1_protease",
+  "drug": "Indinavir",
+  "status": "done",
+  "pose_confidence": 0.64,
+  "affinity": 8.379616663767369,
+  "wall_s_batch": 102.8
+ },
+ {
+  "target": "hiv1_protease",
+  "drug": "Saquinavir",
+  "status": "done",
+  "pose_confidence": 0.72,
+  "affinity": 8.60748986576747,
+  "wall_s_batch": 102.8
+ },
+ {
+  "target": "hiv1_protease",
+  "drug": "Ritonavir",
+  "status": "done",
+  "pose_confidence": 0.67,
+  "affinity": 8.198547109849777,
+  "wall_s_batch": 102.8
+ },
+ {
+  "target": "hiv1_protease",
+  "drug": "Nelfinavir",
+  "status": "done",
+  "pose_confidence": 0.7,
+  "affinity": 9.001591813395823,
+  "wall_s_batch": 102.8
+ },
+ {
+  "target": "hiv1_protease",
+  "drug": "Amprenavir",
+  "status": "done",
+  "pose_confidence": 0.7,
+  "affinity": 8.64986672578903,
+  "wall_s_batch": 102.8
+ }
+]

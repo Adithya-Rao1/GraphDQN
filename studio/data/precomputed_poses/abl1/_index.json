@@ -1,0 +1,45 @@
+{
+ "target": "abl1",
+ "drugs": [
+  {
+   "target": "abl1",
+   "drug": "Imatinib",
+   "status": "done",
+   "pose_confidence": 0.65,
+   "affinity": 6.974161584695868,
+   "wall_s_batch": 154.5
+  },
+  {
+   "target": "abl1",
+   "drug": "Nilotinib",
+   "status": "done",
+   "pose_confidence": 0.63,
+   "affinity": 7.35701330337848,
+   "wall_s_batch": 154.5
+  },
+  {
+   "target": "abl1",
+   "drug": "Dasatinib",
+   "status": "done",
+   "pose_confidence": 0.72,
+   "affinity": 7.697173473818613,
+   "wall_s_batch": 154.5
+  },
+  {
+   "target": "abl1",
+   "drug": "Bosutinib",
+   "status": "done",
+   "pose_confidence": 0.67,
+   "affinity": 7.32562038754796,
+   "wall_s_batch": 154.5
+  },
+  {
+   "target": "abl1",
+   "drug": "Ponatinib",
+   "status": "done",
+   "pose_confidence": 0.67,
+   "affinity": 7.6095467304225926,
+   "wall_s_batch": 154.5
+  }
+ ]
+}
