@@ -1,0 +1,65 @@
+{
+ "id": "hiv1_protease",
+ "name": "HIV-1 protease (indinavir)",
+ "uniprot": "P03367",
+ "pdb_id": "1HSG",
+ "chain": "A",
+ "sequence": "PQITLWQRPLVTIKIGGQLKEALLDTGADDTVLEEMSLPGRWKPKMIGGIGGFIKVRQYDQILIEICGHKAIGTVLVGPTPVNIIGRNLLTQIGCTLNF",
+ "drugs": [
+  {
+   "name": "Indinavir",
+   "smiles": "CC(C)(C)NC(=O)[C@@H]1CN(Cc2cccnc2)CCN1C[C@@H](O)C[C@@H](Cc1ccccc1)C(=O)N[C@H]1c2ccccc2C[C@H]1O",
+   "chembl_id": "CHEMBL115",
+   "source": "ChEMBL canonical_smiles (molecule CHEMBL115); target CHEMBL243 activity records checked"
+  },
+  {
+   "name": "Saquinavir",
+   "smiles": "CC(C)(C)NC(=O)[C@@H]1C[C@@H]2CCCC[C@@H]2CN1C[C@@H](O)[C@H](Cc1ccccc1)NC(=O)[C@H](CC(N)=O)NC(=O)c1ccc2ccccc2n1",
+   "chembl_id": "CHEMBL114",
+   "source": "ChEMBL canonical_smiles (molecule CHEMBL114); target CHEMBL243 activity records checked"
+  },
+  {
+   "name": "Ritonavir",
+   "smiles": "CC(C)c1nc(CN(C)C(=O)N[C@H](C(=O)N[C@@H](Cc2ccccc2)C[C@H](O)[C@H](Cc2ccccc2)NC(=O)OCc2cncs2)C(C)C)cs1",
+   "chembl_id": "CHEMBL163",
+   "source": "ChEMBL canonical_smiles (molecule CHEMBL163); target CHEMBL243 activity records checked"
+  },
+  {
+   "name": "Nelfinavir",
+   "smiles": "Cc1c(O)cccc1C(=O)N[C@@H](CSc1ccccc1)[C@H](O)CN1C[C@H]2CCCC[C@H]2C[C@H]1C(=O)NC(C)(C)C",
+   "chembl_id": "CHEMBL584",
+   "source": "ChEMBL canonical_smiles (molecule CHEMBL584); target CHEMBL243 activity records checked"
+  },
+  {
+   "name": "Amprenavir",
+   "smiles": "CC(C)CN(C[C@@H](O)[C@H](Cc1ccccc1)NC(=O)O[C@H]1CCOC1)S(=O)(=O)c1ccc(N)cc1",
+   "chembl_id": "CHEMBL116",
+   "source": "ChEMBL canonical_smiles (molecule CHEMBL116); target CHEMBL243 activity records checked"
+  }
+ ],
+ "structure_url": "structures/hiv1_protease.pdb",
+ "pocket_residues": [
+  8,
+  23,
+  25,
+  26,
+  27,
+  28,
+  29,
+  30,
+  31,
+  32,
+  47,
+  48,
+  49,
+  50,
+  53,
+  54,
+  76,
+  80,
+  81,
+  82,
+  84
+ ],
+ "note": "Homodimer: the active site sits at the A/B interface, so structure file keeps chains A and B; `sequence` is chain A only (99 aa); pocket_residues are numbers (identical numbering in A and B) of residues from either chain within 6 A of indinavir. Sequence = PDB SEQRES chain A of 1HSG (construct, not full-length UniProt P03367). Pocket = residues of kept chain(s) with any atom within 6 A of co-crystal ligand MK1 (instance B902). Co-crystal ligand identity check vs ChEMBL CHEMBL115: matched (InChIKey connectivity)."
+}

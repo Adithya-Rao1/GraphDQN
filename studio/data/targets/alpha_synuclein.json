@@ -1,0 +1,19 @@
+{
+ "id": "alpha_synuclein",
+ "name": "Alpha-synuclein (UCB0599 / minzasolmin)",
+ "uniprot": "P37840",
+ "pdb_id": "6A6B",
+ "chain": "A",
+ "sequence": "MDVFMKGLSKAKEGVVAAAEKTKQGVAEAAGKTKEGVLYVGSKTKEGVVHGVATVAEKTKEQVTNVGGAVVTGVTAVAQKTVEGAGSIAAATGFVKKDQLGKNEEGAPQEGILEDMPVDPDNEAYEMPSEEGYQDYEPEA",
+ "drugs": [
+  {
+   "name": "Minzasolmin (UCB0599)",
+   "smiles": "CCCC[C@H](Cc1c[nH]c2ccccc12)NC(=O)c1cnc(N2CCN(C)CC2)s1",
+   "chembl_id": "CHEMBL5095072",
+   "source": "ChEMBL canonical_smiles, molecule CHEMBL5095072 (synonyms incl. UCB0599, UCB-0599, DLX-313), retrieved 2026-10-30; max_phase 2 per ChEMBL"
+  }
+ ],
+ "structure_url": "structures/alpha_synuclein.pdb",
+ "pocket_residues": [],
+ "note": "LOW-CONFIDENCE / ILLUSTRATIVE TARGET. Alpha-synuclein is intrinsically disordered: there is no stable drug pocket and no drug-bound high-resolution structure. The structure shown is chain A of 6A6B, a 3.07 A cryo-EM apo FIBRIL (residues 37-99 of 140; the rest is not resolved); it is not a ligand-bound state and not where UCB0599 acts. UCB0599 is described as an inhibitor of alpha-synuclein misfolding/oligomer formation, with no known binding site. pocket_residues is empty on purpose (none invented). Predicted binding affinities and any poses for this target are illustrative only. Sequence = full-length UniProt P37840 (140 aa), not the PDB construct."
+}

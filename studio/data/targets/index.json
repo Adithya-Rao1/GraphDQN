@@ -1,0 +1,26 @@
+[
+ {
+  "id": "egfr",
+  "name": "EGFR kinase domain (erlotinib)"
+ },
+ {
+  "id": "hiv1_protease",
+  "name": "HIV-1 protease (indinavir)"
+ },
+ {
+  "id": "abl1",
+  "name": "ABL1 kinase domain (imatinib)"
+ },
+ {
+  "id": "braf",
+  "name": "BRAF kinase domain (vemurafenib)"
+ },
+ {
+  "id": "fxa",
+  "name": "Factor Xa heavy chain (apixaban)"
+ },
+ {
+  "id": "alpha_synuclein",
+  "name": "Alpha-synuclein (UCB0599 / minzasolmin)"
+ }
+]

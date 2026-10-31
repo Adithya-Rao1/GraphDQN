@@ -1,0 +1,68 @@
+{
+ "id": "fxa",
+ "name": "Factor Xa heavy chain (apixaban)",
+ "uniprot": "P00742",
+ "pdb_id": "2P16",
+ "chain": "A",
+ "sequence": "IVGGQECKDGECPWQALLINEENEGFCGGTILSEFYILTAAHCLYQAKRFKVRVGDRNTEQEEGGEAVHEVEVVIKHNRFTKETYDFDIAVLRLKTPITFRMNVAPACLPERDWAESTLMTQKTGIVSGFGRTHEKGRQSTRLKMLEVPYVDRNSCKLSSSFIITQNMFCAGYDTKQEDACQGDSGGPHVTRFKDTYFVTGIVSWGEGCARKGKYGIYTKVTAFLKWIDRSMKT",
+ "drugs": [
+  {
+   "name": "Apixaban",
+   "smiles": "COc1ccc(-n2nc(C(N)=O)c3c2C(=O)N(c2ccc(N4CCCCC4=O)cc2)CC3)cc1",
+   "chembl_id": "CHEMBL231779",
+   "source": "ChEMBL canonical_smiles (molecule CHEMBL231779); target CHEMBL244 activity records checked"
+  },
+  {
+   "name": "Rivaroxaban",
+   "smiles": "O=C(NC[C@H]1CN(c2ccc(N3CCOCC3=O)cc2)C(=O)O1)c1ccc(Cl)s1",
+   "chembl_id": "CHEMBL198362",
+   "source": "ChEMBL canonical_smiles (molecule CHEMBL198362); target CHEMBL244 activity records checked"
+  },
+  {
+   "name": "Edoxaban",
+   "smiles": "CN1CCc2nc(C(=O)N[C@@H]3C[C@@H](C(=O)N(C)C)CC[C@@H]3NC(=O)C(=O)Nc3ccc(Cl)cn3)sc2C1",
+   "chembl_id": "CHEMBL1269025",
+   "source": "ChEMBL canonical_smiles (molecule CHEMBL1269025); target CHEMBL244 activity records checked"
+  },
+  {
+   "name": "Betrixaban",
+   "smiles": "COc1ccc(NC(=O)c2ccc(C(=N)N(C)C)cc2)c(C(=O)Nc2ccc(Cl)cn2)c1",
+   "chembl_id": "CHEMBL512351",
+   "source": "ChEMBL canonical_smiles (molecule CHEMBL512351); target CHEMBL244 activity records checked"
+  }
+ ],
+ "structure_url": "structures/fxa.pdb",
+ "pocket_residues": [
+  96,
+  97,
+  98,
+  99,
+  143,
+  145,
+  146,
+  147,
+  174,
+  175,
+  180,
+  183,
+  189,
+  190,
+  191,
+  192,
+  193,
+  194,
+  195,
+  213,
+  214,
+  215,
+  216,
+  217,
+  218,
+  220,
+  225,
+  226,
+  227,
+  228
+ ],
+ "note": "Coagulation factor X heavy chain (catalytic serine protease domain) with apixaban (GG2). The EGF-like light chain L and the Ca2+ ion are dropped; the S1/S4 pocket lies wholly in the heavy chain. Sequence = PDB SEQRES chain A of 2P16 (construct, not full-length UniProt P00742). Pocket = residues of kept chain(s) with any atom within 6 A of co-crystal ligand GG2 (instance A298). Co-crystal ligand identity check vs ChEMBL CHEMBL231779: matched (InChIKey connectivity)."
+}
