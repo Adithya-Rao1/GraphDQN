@@ -1,61 +1,77 @@
-# Publishing the Metis Space (owner runs this; nothing here has been pushed)
+# Publishing the Metis Space front door (owner runs this; nothing here has been pushed or uploaded)
 
-Space: `Adithya-Rao/Metis-Space` (Gradio SDK, bucket at `/metis-data`). Public URL: https://adithya-rao-metis-space.hf.space
+Space: `Adithya-Rao/Metis-Space` (Gradio SDK, bucket mounted at `/metis-data`). Public URL: https://adithya-rao-metis-space.hf.space
 
-## What is deployed
+## What it does
 `deploy/space/` is the whole Space repo: `README.md` (YAML header), `app.py`, `requirements.txt`, `web/` (generated).
-`app.py` is a FastAPI gateway: static UI at `/`, `/api/*` proxied to the Lambda backend (SSE unbuffered, 15 s gateway
-heartbeats, 15 min stream cap, 256 KB body cap, 60 s request cap), `/api/health` answered locally
-(`{"backend":"up"|"down"}`, 2 s probe, 3 s cache) so the UI can switch to replay.
-Backend URL: `/metis-data/backend_url.txt` (if present) overrides the `BACKEND_URL` variable and is re-read on every
-request, so a new cloudflared URL needs no restart. `STUDIO_API_KEY` is only sent to the backend as `X-Studio-Key`;
-the browser gets a gateway-only cookie `metis_gw`, never the key and never the backend cookie.
+`app.py` is a FastAPI app on port 7860. The Lambda box serves the real studio UI + API through a cloudflared quick
+tunnel; the Space is the stable front door.
 
-Why `uvicorn.run` in `app.py`: the Gradio-SDK runner just executes `python app.py` and exposes port 7860, so any ASGI
-server works. A minimal Gradio Blocks is mounted at `/gradio` (optional, skipped if gradio is missing) so the Space
-still looks like a Gradio app. If the runner ever ignores the `__main__` block, fall back to exposing a Gradio `demo`
-variable and mounting the proxy with `gr.mount_gradio_app` (not needed so far; untested on the live Space).
+| Path | Behaviour |
+|---|---|
+| `/` | backend up (2 s probe, 3 s cache) -> **302** to the backend origin; down -> landing page (status chip, "Open the live studio" button, link to the recorded replay, clear "backend offline" notice) |
+| `/landing` | landing page always; the chip polls `/api/health` every 5 s |
+| `/open` | the button: 302 to the backend if up, else back to `/landing` |
+| `/replay/?mock=1` | static studio UI from `web/` (the UI labels mock/replay data); `/mock/mock_run.json` is served for it |
+| `/api/health` | local: `{"backend":"up"\|"down","gateway":"ok","proxy":bool}`; never contains the backend URL |
+| `/live/{path}`, `/api/*` | OPTIONAL SSE-safe reverse proxy (heartbeats, 15 min stream cap, 256 KB body cap, 60 s request cap). **Off unless `ENABLE_PROXY=1`**; use it if the address bar must stay on hf.space |
 
-## ZeroGPU question
-- Reports on the HF forum ([1](https://discuss.huggingface.co/t/issues-with-multiple-spaces-stuck-with-no-spaces-gpu-function-detected-during-startup/180537),
-  [2](https://discuss.huggingface.co/t/does-zerogpu-not-work-for-all-spaces/113888)) show a ZeroGPU Space fails at
-  startup with `Runtime Error: No @spaces.GPU function detected during startup` when no function is decorated, and that
-  `import spaces` should come first. I could not find official docs stating this precisely, so treat it as likely, not certain.
-- Mitigation already in `app.py`: a never-called `@spaces.GPU` no-op (guarded by try/except, so harmless on cpu-basic).
-- Safe fallback if the Space still fails to start: Settings -> Hardware -> **CPU basic** (free). No SDK or code change needed;
-  the gateway needs no GPU. Not changed by me. (A ZeroGPU quota is irrelevant: the GPU work runs on Lambda.)
+Backend URL: **first line** of `/metis-data/backend_url.txt`, else the `BACKEND_URL` variable, read at request time (no
+restart when the tunnel rotates). A candidate is accepted only if it is `https`, has no credentials/odd port, and its host
+equals or is a subdomain of an entry in `ALLOWED_BACKEND_HOSTS` (default `trycloudflare.com`, comma-separated). Only the
+origin is kept. A bad file value is skipped in favour of the variable; if nothing valid remains the offline page shows.
 
-## Pre-flight checklist
-1. `deploy/build_space.sh` (copies `studio/web/` incl. `vendor/3Dmol-min.js`, `replay/`, mock run into `deploy/space/web/`).
-   Warns if `studio/web/replay/` is missing: rebuild after the viewer branch with replay is merged.
-2. `.venv/bin/python -m pytest studio/deploy -q -p no:cacheprovider` is green.
-3. Local smoke: `BACKEND_URL=http://127.0.0.1:8000 STUDIO_API_KEY=x PORT=7861 python deploy/space/app.py` with
-   `STUDIO_FORCE_MOCK=1 uvicorn studio.server.app:app` running; open http://localhost:7861 and play a run.
-4. The studio backend must enforce `X-Studio-Key` (it does not in `studio/server/app.py` today; see handoff) and bind to
-   the tunnel only.
-5. `hf auth whoami` shows the owner; confirm hardware choice above; confirm no secrets in `deploy/space/`
-   (`git grep -n -i "key\|token" deploy/space` should only show env-var names).
+Optional: `STUDIO_API_KEY` secret is sent as `X-Studio-Key` to the backend by the health probe and proxy only; never to the browser.
+`REPLAY_HREF` overrides the replay link (default `/replay/?mock=1`; point it at the recorded-replay URL once `studio/web/replay/` exists).
+
+Why `uvicorn.run` in `app.py`: the Gradio-SDK runner executes `python app.py` and exposes port 7860, so any ASGI server
+there works; a minimal Gradio Blocks is mounted at `/gradio` (skipped if gradio is missing). Not yet confirmed on the live Space.
+
+## ZeroGPU
+Forum reports ([1](https://discuss.huggingface.co/t/issues-with-multiple-spaces-stuck-with-no-spaces-gpu-function-detected-during-startup/180537),
+[2](https://discuss.huggingface.co/t/does-zerogpu-not-work-for-all-spaces/113888)) say a ZeroGPU Space aborts with
+`No @spaces.GPU function detected during startup` if nothing is decorated (no official doc found; treat as likely).
+`app.py` contains a never-called, try/except-guarded `@spaces.GPU` no-op. If the Space still fails to start, switch hardware
+to **CPU basic** (Settings -> Hardware): no SDK or code change needed, the front door needs no GPU. I changed no Space settings.
+
+## Pre-flight
+1. `deploy/build_space.sh` (copies `studio/web/` incl. `vendor/3Dmol-min.js`, any `replay/`, and the mock run into `deploy/space/web/`; warns if `replay/` is missing, so rebuild after that lands).
+2. `.venv/bin/python -m pytest studio/deploy -q -p no:cacheprovider` is green (35 tests at time of writing).
+3. Local smoke: `PORT=7861 BACKEND_URL=https://x.trycloudflare.com python deploy/space/app.py`, then `curl -i localhost:7861/` (offline page when the tunnel is not up) and open `/replay/?mock=1`.
+4. `git grep -n -i "token\|secret" deploy/space` shows only env-var names.
 
 ## Commands
 ```bash
 export SPACE=Adithya-Rao/Metis-Space
+hf auth whoami
 deploy/build_space.sh
 
-# secret + variable (the key must equal the one the Lambda backend expects)
-hf spaces secrets set $SPACE STUDIO_API_KEY "<random 32+ chars>"        # or: Settings -> Variables and secrets
-hf spaces variables set $SPACE BACKEND_URL "https://<your-tunnel>.trycloudflare.com"
-# (CLI names vary by version: `hf spaces --help`; the web UI under Settings works equally well.)
+# variables / secrets (CLI syntax from `hf spaces variables|secrets add --help`)
+hf spaces variables add $SPACE -e ALLOWED_BACKEND_HOSTS=trycloudflare.com
+hf spaces variables add $SPACE -e BACKEND_URL=https://<current-tunnel>.trycloudflare.com   # fallback if the bucket file is absent
+# optional proxy mode (address bar stays on hf.space):
+#   hf spaces variables add $SPACE -e ENABLE_PROXY=1
+# optional key, only if the backend enforces X-Studio-Key (reads value from your shell env, not history):
+#   export STUDIO_API_KEY=...; hf spaces secrets add $SPACE -s STUDIO_API_KEY
 
-# upload the folder as the Space contents (delete stale files so web/ stays exact)
-hf upload $SPACE deploy/space . --repo-type space --delete "web/*" --commit-message "Metis gateway"
+# publish the folder as the Space contents (--delete keeps web/ exact)
+hf upload $SPACE deploy/space . --repo-type space --delete "web/*" --commit-message "Metis front door"
+hf spaces wait $SPACE        # then: hf spaces logs $SPACE
+curl -s https://adithya-rao-metis-space.hf.space/api/health
 ```
-Rotating tunnel without restart (bucket is mounted at /metis-data in the Space):
+
+## When the tunnel URL changes
+The bucket is mounted at `/metis-data`; write the new URL as the first line of `backend_url.txt` (from `hf buckets cp --help`: stdin `-` is a valid source):
 ```bash
-echo "https://<new-tunnel>.trycloudflare.com" > backend_url.txt
-hf buckets cp backend_url.txt hf://buckets/<owner>/<bucket-name>/backend_url.txt   # check `hf buckets --help` for exact syntax
+hf buckets list                                   # find <owner>/<bucket> that is mounted at /metis-data
+                                                  # (`hf spaces volumes list $SPACE` shows the mount)
+printf '%s\n' "https://<new-tunnel>.trycloudflare.com" | hf buckets cp - hf://buckets/<owner>/<bucket>/backend_url.txt
+# or from a file:  hf buckets cp backend_url.txt hf://buckets/<owner>/<bucket>/backend_url.txt
+hf buckets cp hf://buckets/<owner>/<bucket>/backend_url.txt -    # verify (prints to stdout)
 ```
-Verify: `curl https://adithya-rao-metis-space.hf.space/api/health` -> `{"backend":"up",...}` (or `"down"` -> UI uses replay).
+No restart is needed; the next request reads the file (probe cache is 3 s). The file contents are not secret but must pass the allowlist. If a new tunnel host would not end in `trycloudflare.com`, add its suffix to `ALLOWED_BACKEND_HOSTS` first.
+I did not run any of these commands; whether the bucket's mount path/writes propagate live into the running Space is untested.
 
 ## Known limits
-- Single gateway worker; SSE connections are capped at 15 min each and rely on the backend's own run limits.
-- The backend sees one stable pseudo-session per browser (HMAC of the gateway cookie), not the user's IP; per-session rate limits work, per-IP ones do not.
+- Redirect mode hands the browser to the tunnel URL, so the address bar leaves hf.space; proxy mode keeps it but adds a hop and caps SSE at 15 min.
+- In proxy mode the backend sees one stable pseudo-session per browser (HMAC of the gateway cookie `metis_gw`), not the client IP.

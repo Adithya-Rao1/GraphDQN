@@ -82,17 +82,20 @@ def fake_backend():
     return app
 
 
-def load_gateway(monkeypatch, tmp_path, backend_url, web=None, **env):
+def load_gateway(monkeypatch, tmp_path, backend_url, web=None, permissive=True, **env):
     monkeypatch.setenv("BACKEND_URL", backend_url or "")
     monkeypatch.setenv("STUDIO_API_KEY", KEY)
     monkeypatch.setenv("METIS_BACKEND_FILE", str(tmp_path / "backend_url.txt"))
     monkeypatch.setenv("GATEWAY_WEB_DIR", str(web or tmp_path / "noweb"))
     monkeypatch.setenv("GATEWAY_HEARTBEAT", "0.3")
+    monkeypatch.setenv("ENABLE_PROXY", "1")
     for k, v in env.items():
         monkeypatch.setenv(k, str(v))
     spec = importlib.util.spec_from_file_location("gw_app_" + str(time.time_ns()), ROOT / "deploy/space/app.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
+    if permissive:  # local fake backends are http://127.0.0.1; the real allowlist is tested separately
+        mod._validate_backend = lambda raw: (raw.strip().splitlines() or [""])[0].rstrip("/") or None
     return mod
 
 
@@ -226,7 +229,6 @@ def test_bucket_file_overrides_and_rotates(monkeypatch, tmp_path):
 def test_non_api_paths_not_proxied(chain):
     g, *_ = chain
     assert httpx.get(g.url + "/secret").status_code == 404
-    assert httpx.get(g.url + "/api/../etc/passwd").status_code in (404, 503, 200)
 
 
 def test_full_chain_with_real_studio_mock_and_ui(monkeypatch, tmp_path):
@@ -238,12 +240,17 @@ def test_full_chain_with_real_studio_mock_and_ui(monkeypatch, tmp_path):
     web = tmp_path / "web"
     import shutil
     shutil.copytree(ROOT / "studio/web", web, ignore=shutil.ignore_patterns("screenshots"))
+    (web / "mock").mkdir()
+    shutil.copy(ROOT / "studio/mock/mock_run.json", web / "mock" / "mock_run.json")
     gw = load_gateway(monkeypatch, tmp_path, studio.url, web=web)
     g = Srv(gw.app)
     try:
-        idx = httpx.get(g.url + "/")
+        idx = httpx.get(g.url + "/live/")      # UI served by the backend, address bar stays on the gateway
         assert idx.status_code == 200 and "<html" in idx.text.lower()
-        assert httpx.get(g.url + "/vendor/3Dmol-min.js").status_code == 200
+        assert httpx.get(g.url + "/live/vendor/3Dmol-min.js").status_code == 200
+        rp = httpx.get(g.url + "/replay/?mock=1")  # local static copy (offline fallback)
+        assert rp.status_code == 200 and "<html" in rp.text.lower()
+        assert httpx.get(g.url + "/replay/vendor/3Dmol-min.js").status_code == 200
         assert httpx.get(g.url + "/api/health").json()["backend"] == "up"
         with httpx.Client(base_url=g.url, timeout=30) as c:
             v = c.post("/api/molecules/validate", json={"smiles": "CC(=O)Oc1ccccc1C(=O)O"})
@@ -265,3 +272,131 @@ def test_full_chain_with_real_studio_mock_and_ui(monkeypatch, tmp_path):
             assert c.cookies.get("studio_sid") is None
     finally:
         g.stop(); studio.stop()
+
+
+# ---------------------------------------------------------------- front door: redirect / allowlist / landing
+GOOD = "https://quiet-river-1234.trycloudflare.com"
+
+
+def _fd(monkeypatch, tmp_path, backend_url="", file_text=None, **env):
+    if file_text is not None:
+        (tmp_path / "backend_url.txt").write_text(file_text)
+    gw = load_gateway(monkeypatch, tmp_path, backend_url, permissive=False, **env)
+    monkeypatch.delenv("ENABLE_PROXY", raising=False) if "ENABLE_PROXY" not in env else None
+    return gw
+
+
+@pytest.mark.parametrize("raw,ok", [
+    (GOOD, True), (GOOD + "/", True), (GOOD + "/x?y=1", True), ("https://trycloudflare.com", True),
+    ("http://a.trycloudflare.com", False),                      # not https
+    ("https://evil.com", False), ("https://trycloudflare.com.evil.com", False),
+    ("https://eviltrycloudflare.com", False), ("https://a.trycloudflare.com@evil.com", False),
+    ("https://user:pw@a.trycloudflare.com", False), ("https://a.trycloudflare.com:8443", False),
+    ("//a.trycloudflare.com", False), ("javascript:alert(1)", False), ("https://a.trycloudflare.com\\@evil.com", False),
+    ("", False), ("https://127.0.0.1", False),
+])
+def test_allowlist(monkeypatch, tmp_path, raw, ok):
+    gw = _fd(monkeypatch, tmp_path)
+    got = gw._validate_backend(raw)
+    assert (got is not None) == ok
+    if ok:
+        assert got.startswith("https://") and got.count("/") == 2   # origin only
+
+
+def test_allowlist_env_configurable(monkeypatch, tmp_path):
+    gw = _fd(monkeypatch, tmp_path, ALLOWED_BACKEND_HOSTS="example.org, trycloudflare.com")
+    assert gw._validate_backend("https://x.example.org") == "https://x.example.org"
+    assert gw._validate_backend("https://a.trycloudflare.com")
+
+
+def test_file_beats_env_first_line_only(monkeypatch, tmp_path):
+    gw = _fd(monkeypatch, tmp_path, "https://env-one.trycloudflare.com",
+             file_text="https://file-one.trycloudflare.com\nhttps://second-line.trycloudflare.com\n")
+    assert gw._backend_url() == "https://file-one.trycloudflare.com"
+    (tmp_path / "backend_url.txt").write_text("https://file-two.trycloudflare.com")   # change at request time
+    assert gw._backend_url() == "https://file-two.trycloudflare.com"
+
+
+def test_invalid_file_falls_to_env_then_none(monkeypatch, tmp_path):
+    gw = _fd(monkeypatch, tmp_path, "https://env-one.trycloudflare.com", file_text="https://evil.com\n")
+    assert gw._backend_url() == "https://env-one.trycloudflare.com"
+    gw2 = _fd(monkeypatch, tmp_path, "http://env.trycloudflare.com", file_text="https://evil.com")
+    assert gw2._backend_url() is None
+    (tmp_path / "backend_url.txt").write_text("")
+    assert _fd(monkeypatch, tmp_path, "")._backend_url() is None
+
+
+class _FD:
+    """Front-door app over httpx ASGI with the upstream probe faked (no network)."""
+    def __init__(self, gw, up):
+        self.calls = []
+        def handler(req):
+            self.calls.append(req)
+            if up:
+                return httpx.Response(200, json={"ok": True, "engine_source": "live", "schema_version": "0.1"})
+            raise httpx.ConnectError("down")
+        gw.app.state.client._transport = httpx.MockTransport(handler)
+        self.app = gw.app
+
+
+def _get(app, path, **kw):
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:
+            return await c.get(path, follow_redirects=False, **kw)
+    return __import__("asyncio").run(go())
+
+
+def test_root_redirects_when_up(monkeypatch, tmp_path):
+    gw = _fd(monkeypatch, tmp_path, GOOD)
+    fd = _FD(gw, up=True)
+    r = _get(fd.app, "/")
+    assert r.status_code == 302 and r.headers["location"] == GOOD + "/"
+    assert "set-cookie" not in r.headers and KEY not in json.dumps(dict(r.headers))
+    assert fd.calls[0].headers["x-studio-key"] == KEY            # optional key goes only to the backend probe
+    r2 = _get(fd.app, "/open")
+    assert r2.status_code == 302 and r2.headers["location"] == GOOD + "/"
+    h = _get(fd.app, "/api/health").json()
+    assert h["backend"] == "up" and h["proxy"] is False and GOOD not in json.dumps(h)
+
+
+def test_root_offline_page_when_down(monkeypatch, tmp_path):
+    gw = _fd(monkeypatch, tmp_path, GOOD)
+    fd = _FD(gw, up=False)
+    r = _get(fd.app, "/")
+    assert r.status_code == 200 and "text/html" in r.headers["content-type"]
+    assert "Metis Lead Studio" in r.text and "Open the live studio" in r.text and "offline" in r.text
+    assert "/replay/" in r.text and "precomputed" in r.text
+    assert GOOD not in r.text and KEY not in r.text and "set-cookie" not in r.headers
+    assert _get(fd.app, "/api/health").json()["backend"] == "down"
+    o = _get(fd.app, "/open")
+    assert o.status_code == 302 and o.headers["location"] == "/landing"
+
+
+def test_disallowed_backend_never_redirects_or_probes(monkeypatch, tmp_path):
+    gw = _fd(monkeypatch, tmp_path, "https://evil.example.com", file_text="http://x.trycloudflare.com")
+    fd = _FD(gw, up=True)                      # even if it "answers", it must be ignored
+    r = _get(fd.app, "/")
+    assert r.status_code == 200 and "offline" in r.text
+    assert fd.calls == []                      # no request ever sent to a non-allowlisted host
+    assert _get(fd.app, "/api/health").json()["backend"] == "down"
+
+
+def test_landing_up_state_and_replay_assets(monkeypatch, tmp_path):
+    web = tmp_path / "web"; (web / "mock").mkdir(parents=True)
+    (web / "index.html").write_text("<html>ui</html>"); (web / "mock" / "mock_run.json").write_text("[]")
+    gw = _fd(monkeypatch, tmp_path, GOOD)
+    gw = load_gateway(monkeypatch, tmp_path, GOOD, web=web, permissive=False)
+    fd = _FD(gw, up=True)
+    assert "Live backend: up" in _get(fd.app, "/landing").text
+    assert "<html>ui</html>" in _get(fd.app, "/replay/").text
+    assert _get(fd.app, "/mock/mock_run.json").status_code == 200
+
+
+def test_proxy_off_by_default(monkeypatch, tmp_path):
+    monkeypatch.delenv("ENABLE_PROXY", raising=False)
+    gw = _fd(monkeypatch, tmp_path, GOOD)
+    monkeypatch.delenv("ENABLE_PROXY", raising=False)
+    fd = _FD(gw, up=True)
+    for path in ("/live/", "/live/api/presets", "/api/presets", "/api/runs/x/events"):
+        assert _get(fd.app, path).status_code == 404
+    assert [c for c in fd.calls if c.url.path != "/api/health"] == []
