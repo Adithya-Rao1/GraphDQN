@@ -52,6 +52,8 @@ def dirs(tmp_path, monkeypatch):
     monkeypatch.setenv("STUDIO_STRUCTURES_DIR", str(tmp_path / "structures"))
     monkeypatch.setenv("STUDIO_POSES_DIR", str(tmp_path / "poses"))
     monkeypatch.delenv("STUDIO_API_KEY", raising=False)
+    # These tests exercise the fixture-target path; the real loader (studio.data) now exists on integrate.
+    monkeypatch.setattr("studio.server.stages.Services._loader", lambda self: self._targets, raising=True)
     (tmp_path / "structures").mkdir()
     (tmp_path / "structures" / "stub.pdb").write_text("ATOM  FAKE\n")
     (tmp_path / "structures" / "notes.txt").write_text("nope")
