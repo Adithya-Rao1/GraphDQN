@@ -16,6 +16,7 @@ SCHEMA_VERSION = "0.1"
 EditCategory = Literal["atom", "bond", "bioisostere", "functional_group", "crossover", "reaction"]
 ChosenBy = Literal["policy", "random", "crossover", "reaction", "user"]
 EventType = Literal["run_start", "generation", "candidate", "policy_metrics", "run_end", "error"]
+Stage = Literal["binding", "pharmacology", "manual"]  # pipeline stage a run belongs to
 
 
 # ---------------------------------------------------------------- descriptors
@@ -45,6 +46,7 @@ class ScoreResult(BaseModel):
     components: Dict[str, float]  # per-descriptor desirability in [0, 1]
     composite: float  # weighted aggregate in [0, 1]
     alerts: List[AlertHit] = Field(default_factory=list)
+    extras: Dict[str, float] = Field(default_factory=dict)  # model outputs, e.g. {"plapt_pkd": 7.1}
 
 
 # ------------------------------------------------------------------ objectives
@@ -67,6 +69,10 @@ class RunConfig(BaseModel):
     use_reactions: bool = False  # SynGA-style reaction operator (stretch)
     locked_atoms: List[int] = Field(default_factory=list)  # seed atom indices that must not change
     preset_id: Optional[str] = None
+    stage: Stage = "pharmacology"
+    target_id: Optional[str] = None  # key into studio/data/targets (binding stage needs it)
+    min_similarity_to_seed: float = 0.4  # Tanimoto guard so stage 1 stays an optimisation of the seed drug
+    max_mw: Optional[float] = None
 
 
 # ------------------------------------------------------------------- explaining
@@ -194,3 +200,79 @@ class ValidateResponse(BaseModel):
 
 class RunCreated(BaseModel):
     run_id: str
+
+
+# ------------------------------------------------------------ targets and poses
+class TargetDrug(BaseModel):
+    name: str
+    smiles: str
+    chembl_id: Optional[str] = None
+    source: str = ""  # where the SMILES came from
+
+
+class TargetInfo(BaseModel):
+    id: str
+    name: str
+    uniprot: Optional[str] = None
+    pdb_id: str
+    chain: str = "A"
+    sequence: str
+    drugs: List[TargetDrug]
+    structure_url: str  # path under /api/data/ serving the cleaned protein PDB
+    pocket_residues: List[int] = Field(default_factory=list)
+    note: str = ""
+
+
+class PoseRequest(BaseModel):
+    target_id: str
+    smiles: str
+
+
+class PoseResult(BaseModel):
+    job_id: str
+    status: Literal["queued", "running", "done", "failed"]
+    target_id: str
+    smiles: str
+    progress: float = 0.0
+    ligand_sdf: Optional[str] = None  # best pose
+    protein_pdb: Optional[str] = None  # protein as predicted with that pose
+    apo_pdb: Optional[str] = None  # input structure, for the apo-vs-predicted overlay
+    pose_confidence: Optional[float] = None  # DynamicBind lDDT-style pose score
+    affinity: Optional[float] = None  # DynamicBind predicted affinity (independent of PLAPT)
+    source: Literal["dynamicbind", "precomputed", "fallback"] = "dynamicbind"
+    note: str = ""
+
+
+# ------------------------------------------------------------------ manual mode
+class ManualPreviewRequest(BaseModel):
+    smiles: str
+    edit_id: str
+    site: List[int]
+    target_id: Optional[str] = None
+
+
+class ManualPreview(BaseModel):
+    ok: bool
+    child_smiles: Optional[str] = None
+    molblock: Optional[str] = None
+    atom_map: List[Tuple[int, int]] = Field(default_factory=list)
+    score: Optional[ScoreResult] = None
+    explanation: Optional[Explanation] = None
+    sane: bool = True
+    reason: Optional[str] = None
+
+
+class ManualStep(BaseModel):
+    parent_smiles: str
+    child_smiles: str
+    edit_id: str
+    site: List[int]
+    reward_delta: Optional[float] = None
+    t: float = 0.0  # seconds since session start
+
+
+class ManualSession(BaseModel):
+    session_id: str
+    seed_smiles: str
+    target_id: Optional[str] = None
+    steps: List[ManualStep] = Field(default_factory=list)
