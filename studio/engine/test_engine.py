@@ -158,23 +158,24 @@ def test_locked_atoms_survive(registry):
 
 
 def test_lock_violation_is_rejected_when_registry_ignores_locks():
-    """The ring-CH->N edit on a locked ring atom must never reach the population."""
-    locked = _ring_idx(CORE_SEED)
-    reg = IgnoresLocksRegistry()
-    only_n = [(e, s) for e, s in reg.applicable(CORE_SEED) if e.id == "fake_ch_to_n"]
+    """A ring-CH->N edit on a locked ring atom must never become a proposal."""
+    canon = Chem.CanonSmiles(CORE_SEED)
+    locked = tuple(_ring_idx(canon))
+    only_n = [(e, s) for e, s in FakeRegistry().applicable(canon) if e.id == "fake_ch_to_n"]
     assert only_n
-    ops = Operators(reg, FakePolicy(), cfg(seed_smiles=CORE_SEED, policy_guidance=0.0, use_crossover=False),
-                    random.Random(0), Locks(CORE_SEED, locked, geometry.atom_map))
-    reg.applicable = lambda smi, locked_atoms=(): only_n  # type: ignore[method-assign]
-    ind = Individual(smiles=Chem.MolToSmiles(Chem.MolFromSmiles(CORE_SEED)), locked=tuple(locked))
-    # canonical indices differ from the raw SMILES; rebuild the lock set on the canonical molecule
-    canon = ind.smiles
-    ind.locked = tuple(_ring_idx(canon))
-    ops.locks = Locks(canon, ind.locked, geometry.atom_map)
-    ops._cands.clear()
-    reg.applicable = lambda smi, locked_atoms=(): [(e, [s[0]]) for e, s in only_n if True][:0] or \
-        [(e, s) for e, s in FakeRegistry().applicable(canon) if e.id == "fake_ch_to_n"]
-    assert all(ops.mutate(ind) is None for _ in range(20))
+
+    class OnlyN(FakeRegistry):
+        def applicable(self, smiles, locked_atoms=()):
+            return only_n
+
+    def ops_with(lock_atoms):
+        return Operators(OnlyN(), FakePolicy(), cfg(seed_smiles=canon, policy_guidance=0.0, use_crossover=False),
+                         random.Random(0), Locks(canon, lock_atoms, geometry.atom_map))
+
+    assert all(ops_with(locked).mutate(Individual(smiles=canon, locked=locked)) is None for _ in range(20))
+    # control: the same edit is accepted when nothing is locked, so the rejection above is the lock check
+    free = ops_with([])
+    assert any(free.mutate(Individual(smiles=canon)) is not None for _ in range(20))
 
 
 def test_locked_indices_follow_noncanonical_seed_order():
