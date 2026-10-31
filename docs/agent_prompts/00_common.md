@@ -27,3 +27,7 @@ SUPERSET_WORKER_BLOCKED
 task: <task-id>
 reason: <specific blocker>
 needs: <decision, access, or dependency required>
+
+Security rule (applies for the whole task): do NOT read, open, list, copy, print or modify any secret or credential file (.env and .env.*, ~/.ssh/*, ~/.cache/huggingface/*, ~/.aws, ~/.config/gh, ~/.netrc, ~/.claude/*, keychains, API keys or tokens in any form) and do not print environment variables. Do not SSH or connect to any remote machine. No network calls except package installs from PyPI and model downloads from the official Hugging Face Hub. If you find a secret, do not use or echo it: stop and report in a SUPERSET_WORKER_BLOCKED envelope.
+
+Wave 1.5 note: the wave-1 parts are merged on branch demo/integrate (your branch starts from it). The real engine is assembled in `studio/wiring.py` (`build_engine()`); read it first. Run the full suite with `.venv/bin/python -m pytest studio tests/studio_suite -q -p no:cacheprovider`.
