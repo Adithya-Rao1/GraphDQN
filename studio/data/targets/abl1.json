@@ -1,0 +1,77 @@
+{
+ "id": "abl1",
+ "name": "ABL1 kinase domain (imatinib)",
+ "uniprot": "P00519",
+ "pdb_id": "2HYY",
+ "chain": "A",
+ "sequence": "VSPNYDKWEMERTDITMKHKLGGGQYGEVYEGVWKKYSLTVAVKTLKEDTMEVEEFLKEAAVMKEIKHPNLVQLLGVCTREPPFYIITEFMTYGNLLDYLRECNRQEVNAVVLLYMATQISSAMEYLEKKNFIHRDLAARNCLVGENHLVKVADFGLSRLMTGDTYTAHAGAKFPIKWTAPESLAYNKFSIKSDVWAFGVLLWEIATYGMSPYPGIDLSQVYELLEKDYRMERPEGCPEKVYELMRACWQWNPSDRPSFAEIHQAFETMFQES",
+ "drugs": [
+  {
+   "name": "Imatinib",
+   "smiles": "Cc1ccc(NC(=O)c2ccc(CN3CCN(C)CC3)cc2)cc1Nc1nccc(-c2cccnc2)n1",
+   "chembl_id": "CHEMBL941",
+   "source": "ChEMBL canonical_smiles (molecule CHEMBL941); target CHEMBL1862 activity records checked"
+  },
+  {
+   "name": "Nilotinib",
+   "smiles": "Cc1cn(-c2cc(NC(=O)c3ccc(C)c(Nc4nccc(-c5cccnc5)n4)c3)cc(C(F)(F)F)c2)cn1",
+   "chembl_id": "CHEMBL255863",
+   "source": "ChEMBL canonical_smiles (molecule CHEMBL255863); target CHEMBL1862 activity records checked"
+  },
+  {
+   "name": "Dasatinib",
+   "smiles": "Cc1nc(Nc2ncc(C(=O)Nc3c(C)cccc3Cl)s2)cc(N2CCN(CCO)CC2)n1",
+   "chembl_id": "CHEMBL1421",
+   "source": "ChEMBL canonical_smiles (molecule CHEMBL1421); target CHEMBL1862 activity records checked"
+  },
+  {
+   "name": "Bosutinib",
+   "smiles": "COc1cc(Nc2c(C#N)cnc3cc(OCCCN4CCN(C)CC4)c(OC)cc23)c(Cl)cc1Cl",
+   "chembl_id": "CHEMBL288441",
+   "source": "ChEMBL canonical_smiles (molecule CHEMBL288441); target CHEMBL1862 activity records checked"
+  },
+  {
+   "name": "Ponatinib",
+   "smiles": "Cc1ccc(C(=O)Nc2ccc(CN3CCN(C)CC3)c(C(F)(F)F)c2)cc1C#Cc1cnc2cccnn12",
+   "chembl_id": "CHEMBL1171837",
+   "source": "ChEMBL canonical_smiles (molecule CHEMBL1171837); target CHEMBL1862 activity records checked"
+  }
+ ],
+ "structure_url": "structures/abl1.pdb",
+ "pocket_residues": [
+  248,
+  249,
+  253,
+  256,
+  269,
+  270,
+  271,
+  286,
+  289,
+  290,
+  293,
+  298,
+  299,
+  313,
+  314,
+  315,
+  316,
+  317,
+  318,
+  319,
+  320,
+  321,
+  322,
+  354,
+  359,
+  360,
+  361,
+  362,
+  370,
+  379,
+  380,
+  381,
+  382
+ ],
+ "note": "Human ABL1 kinase domain (228-500) with imatinib (STI). Chain A of a 4-chain entry. Imatinib binds the inactive DFG-out conformation; ponatinib/nilotinib share it, dasatinib/bosutinib bind more active-like states. Sequence = PDB SEQRES chain A of 2HYY (construct, not full-length UniProt P00519). Pocket = residues of kept chain(s) with any atom within 6 A of co-crystal ligand STI (instance A600). Co-crystal ligand identity check vs ChEMBL CHEMBL941: matched (InChIKey connectivity)."
+}
