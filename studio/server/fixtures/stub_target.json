@@ -1,0 +1,14 @@
+{
+  "id": "stub",
+  "name": "STUB TARGET (fixture, not real data)",
+  "uniprot": null,
+  "pdb_id": "0000",
+  "chain": "A",
+  "sequence": "ACDEFGHIKLMNPQRSTVWY",
+  "drugs": [
+    {"name": "aspirin (stub drug)", "smiles": "CC(=O)Oc1ccccc1C(=O)O", "chembl_id": null, "source": "server fixture, placeholder only"}
+  ],
+  "structure_url": "stub.pdb",
+  "pocket_residues": [],
+  "note": "FIXTURE: used only when studio.data.loader is absent. The sequence is a placeholder and no structure file is shipped."
+}

@@ -10,6 +10,7 @@ import importlib
 import inspect
 import json
 import logging
+import os
 import secrets
 import threading
 import time
@@ -23,6 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from studio.schema import (SCHEMA_VERSION, RunConfig, RunCreated, ScoreResult, ValidateRequest,
                            ValidateResponse)
 from studio.server import molio
+from studio.server import stages
 from studio.server.core import Rejected, RunManager, Settings
 from studio.wiring import describe
 
@@ -70,16 +72,21 @@ def _module_present(modname: str) -> bool:
         return False
 
 
-def create_app(engine: Any = None, scorer: Any = None, settings: Optional[Settings] = None) -> FastAPI:
+def create_app(engine: Any = None, scorer: Any = None, settings: Optional[Settings] = None,
+               services: Optional[stages.Services] = None) -> FastAPI:
     s = settings or Settings.from_env()
     if s.force_mock:
         engine, scorer = None, None
     else:
         engine = engine or _load_component("studio.wiring:engine")
         scorer = scorer or _load_component("studio.wiring:scorer")
+    svc = services or stages.Services()
+    live = engine is not None
+    details = describe(engine)  # describe the real engine, before the stage wrapper hides its parts
+    if live:
+        engine = stages.StageEngine(engine, svc)  # routes stage=binding to the binding engine
     mock_events = json.loads(MOCK.read_text()) if MOCK.exists() else []
     mgr = RunManager(s, engine, mock_events)
-    details = describe(engine)
     # Legacy boolean keys the front-end reads; derived from what the engine actually holds.
     components = {
         "engine": engine is not None,
@@ -90,6 +97,8 @@ def create_app(engine: Any = None, scorer: Any = None, settings: Optional[Settin
         "embed": details["embedder"] is not None,
         "policy": details["policy"] is not None,
         "mock_run": bool(mock_events),
+        "api_auth": bool(os.environ.get("STUDIO_API_KEY")),
+        **({} if s.force_mock else svc.health()),
     }
 
     app = FastAPI(title="Metis Lead Studio")
@@ -114,6 +123,8 @@ def create_app(engine: Any = None, scorer: Any = None, settings: Optional[Settin
         if fresh and request.url.path.startswith("/api/"):
             resp.set_cookie(COOKIE, sid, httponly=True, samesite="lax", max_age=86400)
         return resp
+
+    stages.install_auth(app, os.environ.get("STUDIO_API_KEY"))  # added after `guard`, so it runs first
 
     @app.exception_handler(Rejected)
     async def _rejected(_: Request, exc: Rejected):
@@ -178,6 +189,7 @@ def create_app(engine: Any = None, scorer: Any = None, settings: Optional[Settin
         n = mol.GetNumHeavyAtoms()
         if any(i < 0 or i >= n for i in cfg.locked_atoms):
             raise HTTPException(422, "locked_atoms index out of range")
+        cfg = stages.prepare_config(cfg, svc, live)
         cfg = cfg.model_copy(update={
             "seed_smiles": molio.canonical(mol),
             "generations": max(1, min(cfg.generations, s.max_generations)),
@@ -228,6 +240,8 @@ def create_app(engine: Any = None, scorer: Any = None, settings: Optional[Settin
 
         return StreamingResponse(stream(), media_type="text/event-stream",
                                  headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+    stages.install(app, svc, mgr, scorer, s)
 
     if WEB.exists():
         app.mount("/", StaticFiles(directory=WEB, html=True), name="web")
