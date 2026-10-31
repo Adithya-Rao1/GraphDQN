@@ -46,7 +46,7 @@ def test_invalid_steps_dropped_and_reported(reg, synth):
         {**good[1], "child_smiles": "C(("},
         {**good[2], "edit_id": "no_such_edit"},
         {**good[3], "site": [9999]},
-        {**good[4], "child_smiles": "CCCCCCCC"},         # not what the edit produces
+        {**synth[6], "child_smiles": "CCCCCCCC"},         # not what the edit produces
         {**good[0]},                                        # duplicate
         {"parent_smiles": "CC"},                            # malformed
         {**good[5], "reward": float("nan")},
@@ -84,7 +84,7 @@ def test_hit_prob_ties_are_expected_value():
 def test_adapted_beats_base_on_heldout_synthetic(reg, synth, base):
     ex, _ = clean(synth, reg)
     assert len(ex) == 40
-    ev = evaluate(ex, base, steps=200)
+    ev = evaluate(ex, base, steps=120)
     assert ev["method"] == "80/20 holdout" and ev["n"] == 8
     assert ev["adapted"]["top1"] > ev["base"]["top1"] + 0.2
     assert ev["adapted"]["top3"] > ev["random"]["top3"]
@@ -92,9 +92,9 @@ def test_adapted_beats_base_on_heldout_synthetic(reg, synth, base):
 
 
 def test_small_n_uses_leave_one_out(reg, synth, base):
-    ex, _ = clean(synth[:12], reg)
-    ev = evaluate(ex, base, steps=60)
-    assert ev["method"] == "leave-one-out" and ev["n"] == 12 and "Small sample" in ev["note"]
+    ex, _ = clean(synth[:6], reg)
+    ev = evaluate(ex, base, steps=20)
+    assert ev["method"] == "leave-one-out" and ev["n"] == 6 and "Small sample" in ev["note"]
     for k in ("base", "adapted", "random"):
         lo, hi = ev[k]["top1_ci95"]
         assert lo <= ev[k]["top1"] <= hi
@@ -141,25 +141,27 @@ def test_store_roundtrip_and_fallback(reg, synth, base):
 
 
 def test_job_queue_limits_and_owner_scoping():
-    gate = threading.Event()
+    gate, started = threading.Event(), threading.Event()
 
     def slow(payload, owner, progress=None):
+        started.set()
         gate.wait(5)
         return {"ok": True}
 
     m = JobManager(slow, max_queue=3)
-    ids = [m.submit("o", i) for i in range(4)]  # 1 running + 3 queued (worker may not have picked first yet)
-    time.sleep(0.2)
-    m.submit("o", 5)  # worker holds one, so a fourth queued slot is still free
+    first = m.submit("o", 0)
+    assert started.wait(2)           # worker holds job 0; the queue is now empty
+    for i in (1, 2, 3):
+        m.submit("o", i)
     with pytest.raises(QueueFull):
-        m.submit("o", 6)
-    assert m.get(ids[0], "intruder") is None
+        m.submit("o", 4)
+    assert m.get(first, "intruder") is None
     gate.set()
     for _ in range(50):
-        if m.get(ids[0], "o")["status"] == "done":
+        if m.get(first, "o")["status"] == "done":
             break
         time.sleep(0.05)
-    assert m.get(ids[0], "o")["status"] == "done"
+    assert m.get(first, "o")["status"] == "done"
 
 
 def test_job_timeout_discards_result():

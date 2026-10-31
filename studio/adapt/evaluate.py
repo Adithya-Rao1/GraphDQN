@@ -96,6 +96,8 @@ def evaluate(examples: Sequence[Example], base: BaseInfo, *, steps: int, deadlin
                 break
             tr = [e for j, e in enumerate(examples) if j != i]
             r = adapt(tr, base, steps=min(steps, LOO_STEPS), seed=SEED, deadline=deadline, min_steps=1)
+            if r.stopped_early and deadline is not None and time.monotonic() >= deadline:
+                break  # fold cut off by the deadline: not counted as an evaluation
             record(examples[i], r.policy)
             if progress:
                 progress((i + 1) / n)

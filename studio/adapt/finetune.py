@@ -113,7 +113,7 @@ def adapt(examples: Sequence[Example], base: BaseInfo, *, steps: int = DEFAULT_S
         pol.opt.zero_grad()
         loss.backward()
         pol.opt.step()
-        loss_v = float(loss)
+        loss_v = float(loss.detach())
         if progress and done % 10 == 0:
             progress(done / steps)
     pol.net.eval()
