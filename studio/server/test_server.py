@@ -28,12 +28,13 @@ class FakeEngine:
 
 
 def fast(**kw):
-    base = dict(mock_delay=0.0, replay_delay=0.0, heartbeat=0.2)
+    base = dict(mock_delay=0.0, replay_delay=0.0, heartbeat=0.2, force_mock=False)
     base.update(kw)
     return Settings(**base)
 
 
 def client(engine=None, **kw):
+    kw.setdefault("force_mock", engine is None)  # no engine given -> mock, never the real wiring
     return TestClient(create_app(engine=engine, settings=fast(**kw)))
 
 
@@ -152,7 +153,7 @@ def test_per_session_limit_429():
 
 
 def test_global_limit_and_queue_429():
-    app = create_app(settings=fast(mock_delay=0.5, max_concurrent=1, max_queue=1))
+    app = create_app(settings=fast(mock_delay=0.5, max_concurrent=1, max_queue=1, force_mock=True))
     clients = [TestClient(app) for _ in range(3)]
     codes = [start(x).status_code for x in clients]
     assert codes == [200, 200, 429]
