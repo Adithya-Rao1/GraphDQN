@@ -10,7 +10,7 @@ Use `studio.data.loader`: `list_targets()`, `get_target(id)` (validated `TargetI
 | hiv1_protease | 1HSG | A (+B) | MK1 = indinavir | 2.00 A | CHEMBL243 | P03367 | indinavir 45, saquinavir 49, ritonavir 50, nelfinavir 40, amprenavir 35 |
 | abl1 | 2HYY | A | STI = imatinib | 2.40 A | CHEMBL1862 | P00519 | imatinib 37, nilotinib 39, dasatinib 33, bosutinib 36, ponatinib 39 |
 | braf | 3OG7 | A | 032 = vemurafenib | 2.45 A | CHEMBL5145 | P15056 | vemurafenib 33, dabrafenib 35, encorafenib 36 |
-| fxa | 2P16 | A | GG2 = apixaban | 2.30 A | CHEMBL244 | P00742 | apixaban 34, rivaroxaban 29, edoxaban 35, betrixaban 32 |
+| fxa | 2P16 | A | GG2 = apixaban | 2.30 A | CHEMBL244 | P00742 | apixaban 34, rivaroxaban 29, edoxaban 37, betrixaban 32 |
 
 ## Provenance
 - **Structures** (`structures/<id>.pdb`): RCSB PDB entry, ATOM records of the stated chain(s) only; waters, ligands, ions, alt-locs other than blank/"A" removed. Original residue numbering kept. No hydrogens added, missing loops not rebuilt. PDB data is CC0.
