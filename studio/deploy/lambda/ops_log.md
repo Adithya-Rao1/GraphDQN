@@ -42,3 +42,7 @@ Every remote command run by the lambda-ops worker. No secrets involved. Times ar
 - `precompute_poses.py` finished: 5 targets, 21 drugs, 0 failures (batch wall: abl1 154 s/5, braf 93 s/3, egfr 96 s/4, fxa 98 s/4, hiv1_protease 103 s/5). Output rsynced to studio/data/precomputed_poses/ (6.7 MB) in this branch.
 - Final healthcheck: studio-api OK, studio page OK, dynamicbind OK. Tunnel NOT started (a pre-existing system cloudflared, pid 2232, runs with /etc/cloudflared/config.yml and was left alone). No firewall changes, no new instances.
 - Box disk: 58 GB used / 439 GB free. micromamba 8.7G, studio-venv 6.4G, HF cache 6.0G, DynamicBind runs 327M.
+
+## 2. DynamicBind service / precompute
+- Service verified (see §1/§4 above). `tmux new-session -s precompute`: `precompute_poses.py` finished all 5 targets, 21 drugs, 0 failures (batch wall: abl1 154 s/5 drugs, braf 93 s/3, egfr 96 s/4, fxa 98 s/4, hiv1_protease 103 s/5). Output on box: ~/studio-app/studio/data/precomputed_poses/<target>/<sha1>.json; rsynced back to this branch under studio/data/precomputed_poses/ (6.7 MB).
+- Final healthcheck: studio-api OK, studio page OK, dynamicbind OK. Tunnel NOT started; no firewall changes; no new instances.
