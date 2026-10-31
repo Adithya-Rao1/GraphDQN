@@ -74,12 +74,13 @@ def test_fallback_when_transformers_absent(monkeypatch):
     assert get_embedder().method == "morgan_pca"
 
 
-def test_fallback_when_model_missing(monkeypatch, tmp_path):
+def test_fallback_when_model_missing(monkeypatch):
     pytest.importorskip("transformers")
     from studio.embed import chemberta
 
-    monkeypatch.setenv("HF_HUB_OFFLINE", "1")
-    monkeypatch.setenv("HF_HOME", str(tmp_path))  # empty cache + offline => model missing
+    missing = (("DeepChem/this-checkpoint-does-not-exist", "0" * 40),)
+    monkeypatch.setattr(chemberta, "CHECKPOINTS", missing)
+    monkeypatch.setattr(chemberta.ChemBERTaEmbedder.__init__, "__defaults__", (missing,))
     monkeypatch.setenv("STUDIO_EMBED", "chemberta")
     with pytest.raises(chemberta.ChemBERTaUnavailable):
         chemberta.ChemBERTaEmbedder()
