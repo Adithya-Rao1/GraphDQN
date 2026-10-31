@@ -20,3 +20,20 @@ Every remote command run by the lambda-ops worker. No secrets involved. Times ar
 - inference.py first import computes SO(3) tables (utils/so3.py) once (single-thread, slow) and caches `.so3_*2.npy` in ~/DynamicBind/ (py-spy dump confirmed).
 ## 3 (started in parallel while waiting): studio venv
 - `python3 -m venv ~/studio-venv`; background `pip install torch transformers onnxruntime-gpu diskcache rdkit fastapi uvicorn[standard] deap pyyaml scipy scikit-learn httpx pytest numpy pydantic tqdm sentencepiece` (log ~/install_studio_venv.log).
+- `~/db_example.sh` result (repo example 1qg8, 10 samples): poses + affinity_prediction.csv produced. Pose step first needs relax env fix: openff-toolkit calls `conda list`; added shim `ln -s ~/bin/micromamba ~/bin/conda` and `CONDA_PREFIX=$HOME/micromamba/envs/relax` -> relax_final.py runs (41 s wall for 10 samples, 4 workers) and writes `*_relaxed.sdf/.pdb`.
+- Gate timings (cold, first run, 10 samples, includes one-time ~7 min SO(3) table precompute in utils/so3.py, now cached in ~/DynamicBind/.so3_*2.npy): prep 4.5 s, ESM(HF) 6.8 s, inference.py 537 s total (of which ~400 s one-time SO(3)); warm: ~80 s per batch of 5 samples at 20 steps -> use samples=3.
+- Env fix: dynamicbind env had `tqdm`/`numpy<2` only in ~/.local (user site). `PYTHONNOUSERSITE=1 pip install tqdm "numpy<2"` into the env (numpy 2.x from conda broke torch 2.0.1 "Numpy is not available").
+- Wrote ~/ /home/ubuntu/poll_job.sh. rsync repo code (demo/main studio, binding_module, molecular_modifications, reward, synthetic_accessibility, dqn) + studio/data overlay from demo/targets export + studio/deploy -> ~/studio-app (9.9 MB).
+- `tmux new-session -s dbsvc`: uvicorn dynamicbind_service:app on 127.0.0.1:8100 (studio-venv). Test dock egfr/erlotinib via POST /dock + poll: done in ~55 s wall (protein-prep cache warm), pose_confidence 0.66, affinity 6.49, ligand in pocket (min 3.2 A to CA), CA RMSD apo-vs-predicted 1.18 A in the same frame.
+- `tmux new-session -s precompute`: precompute_poses.py (all 5 targets, 23 drugs, samples 3, steps 20); log ~/precompute.log.
+
+## 3. PLAPT on the GPU (venv ~/studio-venv, py3.10)
+- `python3 -m venv ~/studio-venv`; pip: torch (CUDA wheel), transformers, onnxruntime-gpu, diskcache, rdkit, fastapi, uvicorn[standard], deap, pyyaml, scipy, scikit-learn, httpx, pytest, numpy, pydantic, tqdm, sentencepiece (log ~/install_studio_venv.log; INSTALL_DONE).
+- `HF_HOME=/home/ubuntu/metis-v1-storage/hf STUDIO_CACHE_DIR=/home/ubuntu/metis-v1-storage/cache ~/studio-venv/bin/python studio/deploy/lambda/bench_plapt.py egfr` (downloads Rostlab/prot_bert + seyonec/ChemBERTa-zinc-base-v1 from HF Hub on first load). Results in the envelope. ONNX head runs on the CPU provider (onnxruntime-gpu present but ORT picked CPUExecutionProvider; irrelevant at these sizes).
+- `cd ~/studio-app && pytest studio -q` under Python 3.10.12: all pass (no 3.10 incompatibilities found in studio/).
+
+## 4. API deploy (tunnel NOT started)
+- rsync (script sync_to_box.sh) -> ~/studio-app; `~/.studio_env` (chmod 600): DYNAMICBIND_URL, HF_HOME, STUDIO_CACHE_DIR, STUDIO_APP, DB_MAX_QUEUE; STUDIO_API_KEY intentionally UNSET per integrator update (commented example line).
+- `run_all.sh start` -> tmux dbsvc (:8100) + studio-api (:8000, `uvicorn studio.server.app:app`). `healthcheck.sh`: studio-api OK (engine_source live), GET / returns the studio HTML page, dynamicbind OK.
+- Throwaway test instance on :8101 with DB_MAX_QUEUE=0 (killed by `timeout 40`): novel SMILES -> 429, bad SMILES -> 422, unknown target -> 404, precomputed hit still served -> proves cache hits bypass queue/GPU.
+- Precomputed hit latency measured on :8100: 22 ms (no GPU).

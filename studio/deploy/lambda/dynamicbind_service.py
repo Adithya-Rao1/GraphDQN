@@ -1,6 +1,7 @@
 """DynamicBind job service (runs on the Lambda GPU box, port 8100, concurrency 1).
 
     POST /dock      {target_id, smiles, force?: bool, samples?: int}  -> {job_id}
+                    (precomputed hits are answered from disk, no GPU and no queue; queue is capped, 429 when full)
     GET  /jobs/{id}                                                    -> studio.schema.PoseResult
     GET  /health
 
@@ -48,6 +49,7 @@ HF_EXTRACT = Path(os.environ.get("DB_HF_EXTRACT", HOME / "hf_esm_extract.py"))
 SAMPLES = int(os.environ.get("DB_SAMPLES", "3"))
 STEPS = int(os.environ.get("DB_STEPS", "20"))
 RELAX_WORKERS = int(os.environ.get("DB_RELAX_WORKERS", "8"))
+MAX_QUEUE = int(os.environ.get("DB_MAX_QUEUE", "4"))  # waiting jobs beyond the one running; more -> HTTP 429
 DATA = STUDIO_APP / "studio" / "data"
 PRECOMPUTED = Path(os.environ.get("DB_PRECOMPUTED", DATA / "precomputed_poses"))
 
@@ -292,7 +294,7 @@ def health() -> dict:
                              capture_output=True, text=True, timeout=5).stdout.strip()
     except Exception:  # noqa: BLE001
         pass
-    return {"ok": True, "queue": _q.qsize(), "targets": _targets(), "gpu": gpu, "samples": SAMPLES, "steps": STEPS,
+    return {"ok": True, "queue": _q.qsize(), "targets": _targets(), "gpu": gpu, "samples": SAMPLES, "steps": STEPS, "max_queue": MAX_QUEUE,
             "checkpoint": CKPT, "precomputed_dir": str(PRECOMPUTED)}
 
 
@@ -312,6 +314,8 @@ def dock(req: DockRequest) -> dict:
         with _lock:
             _jobs[job_id] = res
         return {"job_id": job_id}
+    if _q.qsize() >= MAX_QUEUE:
+        raise HTTPException(429, f"DynamicBind queue full ({MAX_QUEUE} waiting); try again shortly")
     with _lock:
         _jobs[job_id] = PoseResult(job_id=job_id, status="queued", target_id=req.target_id, smiles=req.smiles,
                                    note=f"queued ({_q.qsize()} ahead)")
