@@ -1,0 +1,13 @@
+# Metis Lead Studio runtime (CPU). Install into a fresh venv:  python3.12 -m venv .venv && pip install -r studio/requirements.txt
+rdkit
+fastapi
+uvicorn[standard]
+pydantic>=2
+numpy
+scikit-learn      # PCA for the population map
+deap              # GA loop (NSGA-II selection)
+pytest
+httpx
+# optional, owned by single streams:
+# torch --index-url https://download.pytorch.org/whl/cpu   (policy, embed)
+# transformers                                             (embed: ChemBERTa; pin revision, load via HF_HOME=/metis-data/hf-cache on the Space)

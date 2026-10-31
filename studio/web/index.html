@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Metis Lead Studio</title>
+<style>
+  :root { --bg:#0d1117; --fg:#e6edf3; --muted:#8b949e; --card:#161b22; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 -apple-system,Helvetica,Arial,sans-serif; padding:16px; }
+  pre { background:var(--card); padding:12px; border-radius:8px; max-height:60vh; overflow:auto; }
+  .muted { color:var(--muted); }
+</style>
+</head>
+<body>
+  <h1>Metis Lead Studio</h1>
+  <p class="muted">Wave 0 placeholder (owner: viewer agents replace this page). Streams the mock run to prove the SSE path.</p>
+  <button id="go">Run mock</button>
+  <pre id="log"></pre>
+<script>
+document.getElementById("go").onclick = async () => {
+  const log = document.getElementById("log"); log.textContent = "";
+  const r = await fetch("/api/runs", {method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({seed_smiles:"CCOC(=O)c1ccc(cc1)[N+](=O)[O-]"})});
+  const {run_id} = await r.json();
+  const es = new EventSource(`/api/runs/${run_id}/events?delay=0.3`);
+  for (const t of ["run_start","generation","candidate","policy_metrics","run_end","error"]) {
+    es.addEventListener(t, e => { const ev = JSON.parse(e.data); log.textContent += `#${ev.seq} ${ev.type}\n`; if (t==="run_end") es.close(); });
+  }
+};
+</script>
+</body>
+</html>
