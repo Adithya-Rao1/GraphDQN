@@ -18,5 +18,9 @@
  {
   "id": "fxa",
   "name": "Factor Xa heavy chain (apixaban)"
+ },
+ {
+  "id": "alpha_synuclein",
+  "name": "Alpha-synuclein (UCB0599 / minzasolmin)"
  }
 ]

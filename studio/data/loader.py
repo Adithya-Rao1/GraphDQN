@@ -33,3 +33,10 @@ def structure_path(target_id: str) -> Path:
 def dynamicbind_ligand_csv(target_id: str) -> Path:
     get_target(target_id)
     return DATA_DIR / "dynamicbind_inputs" / target_id / "ligand.csv"
+
+
+def reference_ligand_path(target_id: str):
+    """Co-crystal reference pose (SDF, same frame as the structure) or None."""
+    get_target(target_id)
+    p = DATA_DIR / "ligands" / f"{target_id}_reference.sdf"
+    return p if p.is_file() else None

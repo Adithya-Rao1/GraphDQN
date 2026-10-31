@@ -1,6 +1,6 @@
 # studio/data: target repository
 
-5 protein targets, each with a cleaned structure, sequence, known approved drugs and pocket residues.
+Flagship targets: **egfr** (erlotinib, 1M17) and **alpha_synuclein** (UCB0599). 6 protein targets in all, each with a cleaned structure, sequence, known approved drugs and pocket residues.
 Retrieved 2026-10-30 by read-only GETs to files.rcsb.org, data.rcsb.org, www.ebi.ac.uk (ChEMBL API), rest.uniprot.org. No credentials.
 Use `studio.data.loader`: `list_targets()`, `get_target(id)` (validated `TargetInfo`), `structure_path(id)`, `dynamicbind_ligand_csv(id)`.
 
@@ -11,6 +11,11 @@ Use `studio.data.loader`: `list_targets()`, `get_target(id)` (validated `TargetI
 | abl1 | 2HYY | A | STI = imatinib | 2.40 A | CHEMBL1862 | P00519 | imatinib 37, nilotinib 39, dasatinib 33, bosutinib 36, ponatinib 39 |
 | braf | 3OG7 | A | 032 = vemurafenib | 2.45 A | CHEMBL5145 | P15056 | vemurafenib 33, dabrafenib 35, encorafenib 36 |
 | fxa | 2P16 | A | GG2 = apixaban | 2.30 A | CHEMBL244 | P00742 | apixaban 34, rivaroxaban 29, edoxaban 37, betrixaban 32 |
+| alpha_synuclein | 6A6B | A | none (apo fibril) | 3.07 A (cryo-EM) | n/a | P37840 | minzasolmin = UCB0599 (30), CHEMBL5095072 |
+
+## Flagship notes
+- **EGFR reference pose**: `ligands/egfr_reference.sdf` is the 1M17 chain A erlotinib (AQ4 999) co-crystal pose, in the same coordinate frame as `structures/egfr.pdb`. Bond orders come from the ChEMBL CHEMBL553 SMILES as a template (RDKit); no hydrogens. Loader: `reference_ligand_path(id)`.
+- **alpha-synuclein**: intrinsically disordered, no stable pocket, no drug-bound structure. The structure is chain A of 6A6B, an apo cryo-EM fibril covering residues 37-99 only (63 of 140). It is not a UCB0599-bound state. `pocket_residues` is intentionally empty (none invented). The target `note` says binding predictions and poses are low-confidence/illustrative. `sequence` is full-length UniProt P37840 (140 aa), unlike the other targets. UCB0599's SMILES is the ChEMBL canonical SMILES of CHEMBL5095072 (UCB0599 listed as a synonym), retrieved 2026-10-30; PubChem was not queried (outside the allowed hosts). I did not verify any ChEMBL target link or measured activity for UCB0599 on alpha-synuclein. 6A6B was picked as an available fibril entry; I did not survey other fibril or ligand-bound entries (the one RCSB search call listed 275 UniProt-P37840 entries, none inspected).
 
 ## Provenance
 - **Structures** (`structures/<id>.pdb`): RCSB PDB entry, ATOM records of the stated chain(s) only; waters, ligands, ions, alt-locs other than blank/"A" removed. Original residue numbering kept. No hydrogens added, missing loops not rebuilt. PDB data is CC0.
