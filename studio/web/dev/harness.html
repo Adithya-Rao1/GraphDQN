@@ -1,0 +1,12 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>ui-manual dev harness</title>
+<!-- DEV ONLY. Loads ../index.html at run time, then injects the ui-manual panels, manual mode and (with ?shim=1) a fake fetch.
+     Serve the repo root (python -m http.server 8765) and open /studio/web/dev/harness.html?fixture=run_rdkit_local&shim=1 -->
+<body style="background:#090d14;color:#97a6bb;font:16px sans-serif">Loading harness…
+<script>
+fetch("../index.html").then((r) => r.text()).then((t) => {
+  t = t.replace("<head>", '<head><base href="../">').replace("</body>", '<script type="module" src="dev/harness.js"><\/script></body>');
+  document.open(); document.write(t); document.close();
+});
+</script>
