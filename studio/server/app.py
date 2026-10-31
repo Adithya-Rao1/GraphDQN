@@ -11,6 +11,7 @@ import inspect
 import json
 import logging
 import secrets
+import threading
 import time
 from pathlib import Path
 from typing import Any, Optional
@@ -23,6 +24,7 @@ from studio.schema import (SCHEMA_VERSION, RunConfig, RunCreated, ScoreResult, V
                            ValidateResponse)
 from studio.server import molio
 from studio.server.core import Rejected, RunManager, Settings
+from studio.wiring import describe
 
 log = logging.getLogger("studio.server")
 
@@ -37,7 +39,6 @@ _FACTORIES = {
     "studio.wiring:engine": (("build_engine",), ()),
     "studio.wiring:scorer": (("build_scorer",), ()),
 }
-_OPTIONAL = ("studio.registry", "studio.explain", "studio.embed", "studio.policy")
 
 
 def _public_names(mod) -> list:
@@ -78,11 +79,16 @@ def create_app(engine: Any = None, scorer: Any = None, settings: Optional[Settin
         scorer = scorer or _load_component("studio.wiring:scorer")
     mock_events = json.loads(MOCK.read_text()) if MOCK.exists() else []
     mgr = RunManager(s, engine, mock_events)
+    details = describe(engine)
+    # Legacy boolean keys the front-end reads; derived from what the engine actually holds.
     components = {
         "engine": engine is not None,
         "scorer": scorer is not None,
-        "geometry": _module_present("studio.engine.geometry") and not s.force_mock,
-        **{m.split(".")[1]: _module_present(m) and not s.force_mock for m in _OPTIONAL},
+        "geometry": engine is not None and _module_present("studio.engine.geometry"),
+        "registry": details["registry_ops"] > 0,
+        "explain": details["explainer"] is not None,
+        "embed": details["embedder"] is not None,
+        "policy": details["policy"] is not None,
         "mock_run": bool(mock_events),
     }
 
@@ -123,6 +129,7 @@ def create_app(engine: Any = None, scorer: Any = None, settings: Optional[Settin
             "engine_source": "live" if engine is not None else "mock",
             "force_mock": s.force_mock,
             "components": components,
+            "details": details,
             "limits": {
                 "max_concurrent_runs": s.max_concurrent, "max_queue": s.max_queue,
                 "run_timeout_s": s.run_timeout, "max_generations": s.max_generations,
@@ -227,4 +234,25 @@ def create_app(engine: Any = None, scorer: Any = None, settings: Optional[Settin
     return app
 
 
-app = create_app()
+class _LazyApp:
+    """ASGI shim so `uvicorn studio.server.app:app` imports instantly; the real engine is
+    built by create_app() on the first ASGI scope (lifespan startup under uvicorn)."""
+
+    def __init__(self):
+        self._app: Optional[FastAPI] = None
+        self._lock = threading.Lock()
+
+    def _get(self) -> FastAPI:
+        with self._lock:
+            if self._app is None:
+                self._app = create_app()
+            return self._app
+
+    async def __call__(self, scope, receive, send):
+        await self._get()(scope, receive, send)
+
+    def __getattr__(self, name):
+        return getattr(self._get(), name)
+
+
+app = _LazyApp()
