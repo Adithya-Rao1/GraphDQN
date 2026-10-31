@@ -1,0 +1,24 @@
+# Implausible-chemistry SMARTS for studio.sanity.checks. A child is rejected when it matches a pattern MORE
+# often than its parent does (so a user seed that already contains a motif is not penalised for keeping it).
+# Deliberately conservative: hydroxamic acids, N-oxides, disulfides, hydrazides, sulfonamides, azides,
+# nitro, sulfoxides/sulfones, acetals/aminals and 3-membered carbocycles must stay allowed.
+patterns:
+  - {name: nitroso_cation, smarts: "[N+;!$([N+](=O)[O-])]=[O]", why: "charged N=O that is not a nitro group (the breakage seen on nitrobenzoate); real nitroso is neutral"}
+  - {name: peroxide, smarts: "[#8]-[#8]", why: "O-O bonds are unstable and not a med-chem edit outcome"}
+  - {name: n_n_n_chain, smarts: "[#7;!a;!$([#7]=[#7+]=[#7-]);!$([#7-]=[#7+]=[#7])]~[#7;!a]~[#7;!a;!$([#7]=[#7+]=[#7-])]", why: "triazane/triazene chains; excludes azides and aromatic triazoles/tetrazoles"}
+  - {name: n_n_o, smarts: "[#7]~[#7]~[#8;!$([O-])]", why: "N-N-O chains (e.g. N-nitrosamine-like fragments, hydrazine-N-oxy) are unstable; keeps N-oxides ([O-]) out of the rule"}
+  - {name: o_n_o, smarts: "[OX2][#7;X3;+0][OX2]", why: "N,N-dioxy amines are unstable (nitro/nitrate use charged or double-bonded O and are not matched)"}
+  - {name: n_o_n, smarts: "[#7]-[OX2]-[#7]", why: "N-O-N linkage is unstable"}
+  - {name: s_o_s, smarts: "[#16]-[OX2]-[#16]", why: "S-O-S linkage is not a stable drug motif (disulfides S-S stay allowed)"}
+  - {name: s_s_s, smarts: "[#16]-[#16]-[#16]", why: "trisulfide chains; plain disulfides stay allowed"}
+  - {name: o_acyl_hydroxylamine, smarts: "[#7;X3;+0]-[OX2;H0]-[CX3]=[O,S]", why: "O-acyl hydroxylamines (the nitrobenzoate breakage); hydroxamic acids C(=O)N-OH and O-alkyl hydroxamates are not matched"}
+  - {name: n_halogen, smarts: "[F,Cl,Br,I]-[#7,#8]", why: "N-halo amines / hypohalites are reactive oxidants"}
+  - {name: acyl_halide, smarts: "[CX3](=[O,S])-[F,Cl,Br,I]", why: "acyl halides hydrolyse immediately"}
+  - {name: gem_triheteroatom, smarts: "[CX4;!$(C(F)(F)F)]([#7,#8,#16;!$([#7,#8,#16]~[#8,#16]=[O])])([#7,#8,#16])[#7,#8,#16]", why: "orthoester/orthoamide-like carbon with three heteroatoms is unstable; acetals and aminals stay allowed"}
+  - {name: diazo_oxy, smarts: "[#7]=[#7;+0]-[#8]", why: "azoxy-ether/diazotate-like fragments are unstable"}
+  - {name: ketene, smarts: "[#6]=[#6]=[#8,#16]", why: "ketenes are not isolable"}
+  - {name: cyclopropene, smarts: "[r3]=[r3]", why: "cyclopropene ring strain (cyclopropane stays allowed)"}
+  - {name: small_ring_triple, smarts: "[#6;r3,r4,r5,r6,r7;$([#6]#*)]", why: "triple bond in a ring of 7 or fewer atoms is impossibly strained"}
+  - {name: small_ring_allene, smarts: "[#6;r3,r4,r5,r6,r7;$([#6]=[#6]=*)]", why: "allene/cumulene in a ring of 7 or fewer atoms is impossibly strained"}
+  - {name: ring3_two_heteroatoms, smarts: "[r3;!#6]~[r3;!#6]", why: "3-membered rings with 2+ heteroatoms (diaziridine, dioxirane, oxaziridine) are unstable; epoxide/aziridine allowed"}
+  - {name: sulfur_oxygen_anion_chain, smarts: "[#16;X2]-[O-]", why: "sulfenate anions in neutral drugs imply a broken sulfoxide/sulfonyl"}

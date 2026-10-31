@@ -106,6 +106,8 @@ class _BaseOp:
         self.tags = list(tags)
         self.rationale = rationale
         self.rationale_reviewed = False
+        self.demo_safe = True  # overwritten from demo_safe.yaml by the registry
+        self.demo_safe_reason = ""
 
     def __repr__(self) -> str:
         return f"<EditOp {self.id}>"
