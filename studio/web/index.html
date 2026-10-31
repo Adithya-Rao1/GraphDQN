@@ -8,7 +8,9 @@
   // dark is the default (projector); an explicit saved choice wins
   try { document.documentElement.dataset.theme = localStorage.getItem("metis-theme") || "dark"; } catch (e) { document.documentElement.dataset.theme = "dark"; }
 </script>
+<link rel="icon" href="data:,">
 <link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="css/stages.css">
 <!-- 3Dmol.js 2.5.3 from cdnjs (pinned, SRI); vendor/3Dmol-min.js is the same file, used when the CDN is unreachable. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/3Dmol/2.5.3/3Dmol-min.js"
         integrity="sha512-MvPSUXDx79leVqN1wGTdaRoGjRC8cqwxPvMmN5i1D7tYqcSIFR0QY4/oG3bP25C33UyiNfQ75hFKEPFKx8wK6Q=="
@@ -24,9 +26,18 @@
     <div class="status" id="status" role="status" aria-live="polite">Ready</div>
     <span class="source-badge" id="source-badge" hidden></span>
     <div class="spacer"></div>
+    <span class="mode-chip" id="mode-chip" hidden></span>
+    <button class="btn ghost" id="btn-help" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">?</button>
     <button class="btn" id="btn-export" title="Save the current view as PNG (S)">Save PNG</button>
     <button class="btn ghost" id="btn-theme" title="Toggle light / dark">Theme</button>
   </header>
+
+  <div class="banner" id="offline-banner" role="alert" hidden>
+    <b>Backend offline: showing a recorded replay.</b> <span id="offline-detail"></span>
+    <button class="btn small" id="btn-retry">Retry connection</button>
+  </div>
+
+  <nav class="stages" id="stage-switcher" aria-label="Pipeline stages"></nav>
 
   <main class="main">
     <section class="stage-col">
@@ -37,6 +48,10 @@
         <div class="stage-hud tr" id="hud-legend"></div>
         <div class="stage-hud bl" id="hud-hint"></div>
         <div class="stage-hud br" id="hud-perf" hidden></div>
+        <div class="stage-hud badge" id="hud-binding" hidden></div>
+        <div class="stage-hud tiles" id="hud-pose" hidden></div>
+        <div class="stage-hud center" id="hud-progress" hidden></div>
+        <div class="stage-skeleton" id="stage-skeleton" hidden><div class="sk-ring"></div><div class="sk-text" id="sk-text">Loading protein…</div></div>
         <div class="stage-empty" id="stage-empty">
           <div class="big">Drop a molecule to begin</div>
           <div class="small">Paste a SMILES or drop a MOL / SDF file in the panel on the right.</div>
@@ -65,6 +80,49 @@
     </section>
 
     <aside class="side" id="side">
+      <section class="card target" id="card-target">
+        <h2>Target &amp; seed drug</h2>
+        <div id="target-skel" class="skel-block" hidden></div>
+        <div id="target-body">
+          <label class="field">Protein target<select id="sel-target" class="text sel" aria-label="Protein target"></select></label>
+          <div class="target-meta" id="target-meta"></div>
+          <label class="field">Known drug (seed)<select id="sel-drug" class="text sel" aria-label="Known drug"></select></label>
+          <div class="seed-smiles" id="seed-smiles"></div>
+          <div class="chips" id="chips"></div>
+          <details class="settings" id="t-settings">
+            <summary>Run settings</summary>
+            <div class="grid2">
+              <label>Generations<input id="t-gens" class="text num" type="number" min="1" max="30" value="8"></label>
+              <label>Population<input id="t-pop" class="text num" type="number" min="4" max="60" value="16"></label>
+              <label>Min. similarity to seed <output id="t-sim-out">0.40</output><input id="t-sim" type="range" min="0.2" max="0.9" step="0.05" value="0.4"></label>
+              <label>Max. MW (0 = none)<input id="t-mw" class="text num" type="number" min="0" max="900" value="0"></label>
+            </div>
+          </details>
+          <div class="row end"><button class="btn primary big" id="btn-stage-run" disabled>Run</button></div>
+          <div class="msg" id="stage-msg" role="alert" hidden></div>
+        </div>
+      </section>
+
+      <section class="card leads" id="card-leads">
+        <h2>Stage 1 · Best predicted binding <span class="pred-tag">PREDICTED</span></h2>
+        <svg id="aff-chart" class="aff-chart" viewBox="0 0 440 170" role="img" aria-label="Best predicted affinity per generation"></svg>
+        <div class="lead-wrap"><table class="leads-table" id="leads-table"><tbody><tr><td class="muted">Run the binding stage to see leads.</td></tr></tbody></table></div>
+        <div class="row lead-actions">
+          <button class="btn" id="btn-dock" disabled title="Predict the 3D pose of the selected lead with DynamicBind (D)">Dock this lead →</button>
+          <button class="btn primary" id="btn-optimise" disabled title="Optimise the selected lead's pharmacology (P)">Optimise pharmacology →</button>
+        </div>
+      </section>
+
+      <section class="card posecard" id="card-pose">
+        <h2>Stage 2 · Pose &amp; induced fit</h2>
+        <div id="pose-body"><p class="muted">Pick a lead and press “Dock”. DynamicBind predicts the ligand pose <i>and</i> how the protein moves.</p></div>
+        <div class="check-row" id="pose-controls" hidden>
+          <label class="check"><input type="checkbox" id="pose-apo" checked> Show apo (ghost) vs predicted</label>
+          <label class="check"><input type="checkbox" id="pose-disp" checked> Highlight moved residues</label>
+          <div class="row"><button class="btn small" id="pose-replay">↻ Replay glide</button><button class="btn small ghost" id="pose-opt">Optimise pharmacology →</button></div>
+        </div>
+      </section>
+
       <section class="card start" id="card-start">
         <h2>Molecule</h2>
         <div class="row">
@@ -112,9 +170,8 @@
     </aside>
   </main>
 
-  <!-- Pivot mount points: stage stepper (ui-structure), manual CADD (ui-manual-panels). -->
-  <nav class="stages" id="stage-switcher" aria-label="Pipeline stages"></nav>
-  <section class="mount" id="panel-manual"></section>
+  <!-- Pivot mount points: stage stepper is above (ui-structure); #panel-manual is filled by the manual CADD agent. -->
+  <section class="mount manual-mount" id="panel-manual"></section>
   <section class="mount" id="panel-pose"></section>
 
   <!-- Wave-2 mount points. They stay hidden until a panel puts content inside (see README.md). -->
@@ -124,6 +181,25 @@
     <section class="mount" id="panel-map"></section>
     <section class="mount" id="panel-story"></section>
   </section>
+</div>
+<div class="help-overlay" id="help" hidden role="dialog" aria-label="Keyboard shortcuts">
+  <div class="help-card">
+    <h2>Keyboard shortcuts</h2>
+    <table>
+      <tr><td><kbd>Space</kbd></td><td>play / pause the edit timeline</td></tr>
+      <tr><td><kbd>←</kbd> <kbd>→</kbd></td><td>previous / next edit</td></tr>
+      <tr><td><kbd>1</kbd>–<kbd>4</kbd></td><td>timeline speed 0.5× / 1× / 2× / 4×</td></tr>
+      <tr><td><kbd>Q</kbd> <kbd>W</kbd> <kbd>E</kbd> <kbd>R</kbd></td><td>go to stage 1 Binding / 2 Pose / 3 Pharmacology / Manual</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>run the current stage</td></tr>
+      <tr><td><kbd>D</kbd></td><td>dock the selected lead (stage 2)</td></tr>
+      <tr><td><kbd>P</kbd></td><td>optimise the selected lead's pharmacology (stage 3)</td></tr>
+      <tr><td><kbd>A</kbd></td><td>toggle apo-vs-predicted overlay (stage 2)</td></tr>
+      <tr><td><kbd>S</kbd></td><td>save the current view as PNG</td></tr>
+      <tr><td><kbd>?</kbd></td><td>this help</td></tr>
+    </table>
+    <p class="muted">Mouse: drag = rotate, scroll = zoom, hover a protein residue = its name.</p>
+    <button class="btn primary" id="help-close">Close</button>
+  </div>
 </div>
 <script type="module" src="js/main.js"></script>
 </body>

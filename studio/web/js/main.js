@@ -8,7 +8,12 @@ import { Stage } from "./stage.js";
 import { SCALES, scaleCss } from "./overlays.js";
 import { renderWhy } from "./whycard.js";
 import { mountUpload } from "./upload.js";
-import { apiBase, playRecorded, ingest } from "./run.js";
+import { apiBase, playRecorded, ingest, stopStreams } from "./run.js";
+import { parseMolblock } from "./molparse.js";
+import * as API from "./api.js";
+import { Pocket, centroid } from "./pocket.js";
+import { PoseView, heavyMolblock } from "./pose.js";
+import { mountStages, set as setStage, S, actions, loadTargets, startRun, restoreRun, closeStream, renderChips, affinityOf } from "./stages.js";
 
 const $ = (id) => document.getElementById(id);
 const q = new URLSearchParams(location.search);
@@ -36,7 +41,45 @@ try {
   throw err;
 }
 let filter = "accepted";
-window.metis = { bus, store, timeline, stage, ingest, perf: stage.perf };
+const pocket = new Pocket(stage);
+const poseView = new PoseView({ stage, pocket });
+window.metis = { bus, store, timeline, stage, ingest, perf: stage.perf, pocket, poseView };
+
+// Inside the pocket scene the camera frames the binding site, not just the ligand.
+const ligandFit = stage.fit.bind(stage);
+stage.fit = () => (pocket.main && pocket.active && !poseView.active ? pocket.fit(0) : ligandFit());
+
+const drawFx = stage._drawOverlay.bind(stage);
+stage._drawOverlay = (now) => { drawFx(now); if (pocket.main && pocket.active && !poseView.active) pocket.drawAura(now); };
+
+// Ligand coordinates from the server are in their own frame. When they are not already in the protein frame (no pose yet), the whole
+// run is translated (rigidly) onto the pocket centre so it can be shown inside the scene. This is a schematic placement, not docking.
+let placeOffset = [0, 0, 0], placed = false;
+function shiftMolblock(block, d) {
+  if (!block || (!d[0] && !d[1] && !d[2])) return block;
+  const lines = block.replace(/\r/g, "").split("\n");
+  const n = parseInt(lines[3].slice(0, 3), 10);
+  for (let i = 0; i < n; i++) {
+    const l = lines[4 + i];
+    const f = (a, b, dv) => (parseFloat(l.slice(a, b)) + dv).toFixed(4).padStart(10);
+    lines[4 + i] = f(0, 10, d[0]) + f(10, 20, d[1]) + f(20, 30, d[2]) + l.slice(30);
+  }
+  return lines.join("\n");
+}
+const place = (b) => shiftMolblock(b, placeOffset);
+function updatePlacement() {
+  placeOffset = [0, 0, 0]; placed = false;
+  if (!pocket.main || !pocket.active || !store.seed?.molblock) return;
+  try {
+    const atoms = parseMolblock(store.seed.molblock).atoms;
+    const c = centroid(atoms);
+    const pose = S.pose && S.pose.smiles === store.seed.smiles ? centroid(parseMolblock(S.pose.ligandBlock).atoms) : null;
+    const tgt = pose || pocket.center;
+    const d = [tgt[0] - c[0], tgt[1] - c[1], tgt[2] - c[2]];
+    if (Math.hypot(...d) < 4) return; // already in the protein frame
+    placeOffset = d; placed = !pose;
+  } catch (e) { console.warn("placement failed", e); }
+}
 
 const setStatus = (t) => { $("status").textContent = t; };
 
@@ -51,14 +94,14 @@ function setBadge(source) {
 
 // ------------------------------------------------------------------------- keyframes
 function seedKeyframe() {
-  return { id: "seed", kind: "seed", morph: new Morph({ childBlock: store.seed.molblock }), morphMs: 0, holdMs: DEFAULTS.seedHoldMs, label: "Seed", smilesOut: store.seed.smiles };
+  return { id: "seed", kind: "seed", morph: new Morph({ childBlock: place(store.seed.molblock) }), morphMs: 0, holdMs: DEFAULTS.seedHoldMs, label: "Seed", smilesOut: store.seed.smiles };
 }
 
 function editKeyframe(c, prev) {
   const ref = prev && prev.smilesOut === c.parent_smiles ? prev.morph.childAtoms : null;
   let morph;
   try {
-    morph = new Morph({ parentBlock: c.parent_molblock, childBlock: c.molblock, atomMap: c.atom_map, refAtoms: ref });
+    morph = new Morph({ parentBlock: place(c.parent_molblock), childBlock: place(c.molblock), atomMap: c.atom_map, refAtoms: ref });
   } catch (err) {
     console.error("could not build morph for", c.id, err);
     return null;
@@ -86,6 +129,7 @@ function rebuild(keepId) { timeline.replace(buildAll(), keepId); }
 bus.on("run:created", () => setStatus("Run created, waiting for the first event…"));
 
 bus.on("run:start", ({ payload }) => {
+  updatePlacement();
   timeline.clear();
   timeline.live = true;
   const kfs = buildAll();
@@ -228,6 +272,7 @@ function showPreview(data, request) {
   store.source = "preview";
   store.seed = { smiles: data.canonical_smiles, molblock, score: data.score || null };
   store.status = "ready";
+  updatePlacement();
   if (data.score) store.remember(data.canonical_smiles, { score: data.score, alerts: data.score.alerts, composite: data.score.composite });
   timeline.live = false;
   timeline.clear();
@@ -293,6 +338,186 @@ if (q.get("perf") === "1") {
   }, 500);
 }
 
+// ----------------------------------------------------------------------------- pipeline wiring
+const poseUi = { lastSmiles: null };
+let structureText = null, sceneFlavor = null; // flavor: "apo" (target structure) | "pose" (DynamicBind protein)
+const skeleton = (on, text) => { $("stage-skeleton").hidden = !on; if (text) $("sk-text").textContent = text; };
+
+async function ensureScene(flavor) {
+  const t = S.target;
+  if (!t || !structureText) return;
+  if (pocket.main && sceneFlavor === flavor && pocket.target?.id === t.id) return;
+  const usePose = flavor === "pose" && S.pose?.proteinPdb;
+  await pocket.load(t, usePose ? S.pose.proteinPdb : structureText);
+  sceneFlavor = usePose ? "pose" : "apo";
+  pocket.fit(0);
+}
+
+async function loadTargetScene(t) {
+  skeleton(true, `Loading ${t.name}…`);
+  setStatus(`Loading ${t.name}…`);
+  poseView.leave();
+  pocket.clear(); sceneFlavor = null; structureText = null;
+  try {
+    structureText = await API.getStructure(t);
+    await pocket.load(t, structureText);
+    sceneFlavor = "apo";
+    setStatus(`${t.name} · ${t.pocket_residues?.length || 0} pocket residues`);
+  } catch (e) {
+    console.error(e);
+    setStatus(`Could not load the structure of ${t.name}: ${e.message}`);
+  }
+  skeleton(false);
+  await enterStage(S.stage);
+}
+actions.loadTarget = loadTargetScene;
+
+async function previewSeed(smiles, block) {
+  if (!smiles) return;
+  try {
+    let canonical = smiles, score = null;
+    if (!block) {
+      const v = await API.validate(smiles);
+      if (!v?.ok || !v.molblock) throw new Error(v?.error || "no 3D coordinates");
+      block = v.molblock; canonical = v.canonical_smiles || smiles; score = v.score || null;
+    }
+    $("stage-empty").hidden = true;
+    timeline.live = false;
+    showPreview({ canonical_smiles: canonical, molblock: block, score }, null);
+  } catch (e) {
+    setStatus(`Could not preview ${smiles}: ${e.message}`);
+  }
+}
+
+/** Put the 3D scene and timeline into the right state for a stage (also used after a target change). */
+async function enterStage(st) {
+  if (st !== "pose" && poseView.active) { poseView.leave(); lastKf && stage.setKeyframe(lastKf); }
+  if (st === "pose") {
+    timeline.pause();
+    closeStream();
+    $("stage-empty").hidden = true;
+    await ensureScene("apo");
+    if (S.pose && poseView.result && S.pose.smiles === (S.lead?.smiles || S.seedSmiles)) await playCachedPose();
+    else if (!poseView.active) poseView._enter();
+    paintPoseCard();
+    return;
+  }
+  await ensureScene(st !== "binding" && S.pose ? "pose" : "apo");
+  const rec = S.runs[st === "manual" ? "pharmacology" : st];
+  const want = st === "binding" ? "binding" : "pharmacology";
+  if (rec?.events.length && store.config?.stage !== want) {
+    stopStreams();
+    restoreRun(want === "binding" ? "binding" : "pharmacology");
+    return;
+  }
+  if (store.config?.stage === want && store.status !== "ready") return; // already showing this stage's run
+  if (rec?.events.length) return;
+  const seed = want === "binding" ? S.seedSmiles : S.lead?.smiles || S.seedSmiles;
+  const pose = S.pose && S.pose.smiles === seed ? S.pose : null;
+  store.reset();
+  await previewSeed(seed, pose?.ligandBlock);
+}
+
+mountStages();
+window.MetisStages.onStageChange((st) => { enterStage(st).catch((e) => console.error(e)); });
+
+async function playCachedPose() {
+  skeleton(false);
+  const p = S.pose;
+  await poseView.replay();
+  poseUi.lastSmiles = p.smiles;
+}
+
+function movedList(moved) {
+  return (moved || []).filter((m) => m.d >= 0.5).slice(0, 5).map((m) => `${esc(m.resn)} ${m.resi} <b>${m.d.toFixed(1)} Å</b>`).join(" · ") || "no residue moved more than 0.5 Å";
+}
+
+function paintPoseCard() {
+  const body = $("pose-body"), r = S.pose?.result, ctl = $("pose-controls");
+  ctl.hidden = !r;
+  if (!r) return;
+  const f = (v, d = 2) => (typeof v === "number" ? v.toFixed(d) : "n/a");
+  const lead = S.lead?.smiles === S.pose.smiles ? S.lead.affinity : null;
+  body.innerHTML = `
+    <div class="kv"><span>Ligand</span><code>${esc(S.pose.smiles)}</code></div>
+    <div class="kv"><span>Pose confidence</span><b>${f(r.pose_confidence)}</b></div>
+    <div class="kv"><span>DynamicBind affinity</span><b>${f(r.affinity, 1)}</b></div>
+    <div class="kv"><span>PLAPT affinity (stage 1)</span><b>${typeof lead === "number" ? lead.toFixed(1) : "n/a"}</b></div>
+    <div class="kv"><span>Most moved residues</span><span>${movedList(S.pose.moved)}</span></div>
+    <p class="plain">What this means: DynamicBind predicts <i>how</i> the drug sits in the pocket and how the protein bends around it. Its affinity and PLAPT's affinity are two separate model predictions, not measurements, and they can disagree. Treat both as hypotheses to test.</p>
+    ${r.note ? `<p class="note">${esc(r.note)}</p>` : ""}`;
+}
+
+actions.dock = async (smiles) => {
+  if (!S.target || !smiles) return;
+  if (S.stage !== "pose") setStage("pose");
+  await ensureScene("apo");
+  const lead = S.lead?.smiles === smiles ? S.lead.affinity : S.runs.binding?.done ? null : affinityOfSeed(smiles);
+  $("pose-body").innerHTML = `<p class="muted">Predicting the pose of <code>${esc(smiles)}</code>…</p>`;
+  $("pose-controls").hidden = true;
+  $("btn-stage-run").disabled = true;
+  const done = await poseView.start({
+    target: S.target, smiles, structureText, leadAffinity: lead,
+    onResult: (d) => {
+      S.pose = { smiles, target_id: S.target.id, ligandBlock: d.ligandBlock, proteinPdb: d.proteinPdb, result: d.result, moved: d.moved };
+      sceneFlavor = "apo";
+      paintPoseCard(); renderChips(); bus.emit("pose:done", { pose: S.pose });
+    },
+  });
+  $("btn-stage-run").disabled = false;
+  if (!done) paintPoseFailure();
+};
+const affinityOfSeed = (smiles) => (smiles === S.seedSmiles && store.seed ? affinityOf(store.seed.score) : null);
+function paintPoseFailure() { if (!S.pose) $("pose-body").innerHTML = `<p class="muted">No pose yet. Try again with “Predict pose”.</p>`; }
+
+actions.optimise = async (smiles) => {
+  if (!smiles) return;
+  if (S.stage !== "pharmacology") setStage("pharmacology");
+  await ensureScene(S.pose ? "pose" : "apo");
+  stopStreams();
+  store.reset();
+  await startRun("pharmacology", smiles);
+};
+
+bus.on("pose:done", () => { renderChips(); document.querySelectorAll("#stage-switcher .step")[1]?.classList.add("done"); });
+$("pose-replay").onclick = () => poseView.replay();
+$("pose-apo").onchange = (e) => poseView.setOverlay(e.target.checked);
+$("pose-disp").onchange = (e) => poseView.setHighlight(e.target.checked);
+
+// the custom-molecule card (stage 3): same run, plus the pipeline fields upload.js does not know about
+$("btn-run").onclick = () => { if (store.seed) startRun("pharmacology", store.seed.smiles); };
+
+// ------------------------------------------------------------------ banner, mode chip, help
+function paintMode() {
+  const chip = $("mode-chip"), m = API.api.mode;
+  chip.hidden = false;
+  chip.className = "mode-chip " + m;
+  chip.textContent = m === "live" ? "LIVE" : m === "fixtures" ? "FIXTURES" : "REPLAY";
+  chip.title = m === "live" ? "Connected to the backend" : m === "fixtures" ? "Synthetic UI-development data (?fixtures=1)" : "Backend offline: recorded run";
+  const b = $("offline-banner");
+  b.hidden = m !== "replay";
+  if (m === "replay") $("offline-detail").textContent = API.api.replay ? "Everything below is pre-recorded." : "No recording is available either, so there is nothing to show.";
+}
+$("btn-retry").onclick = () => location.reload();
+const help = $("help");
+const toggleHelp = (on) => { help.hidden = on === undefined ? !help.hidden : !on; };
+$("btn-help").onclick = () => toggleHelp();
+$("help-close").onclick = () => toggleHelp(false);
+help.addEventListener("click", (e) => { if (e.target === help) toggleHelp(false); });
+
+window.addEventListener("keydown", (e) => {
+  if (e.target.matches("input, textarea, select") || e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key;
+  const go = { q: "binding", w: "pose", e: "pharmacology", r: "manual" }[k.toLowerCase()];
+  if (go) { setStage(S.stage === go && go === "manual" ? "pharmacology" : go); e.preventDefault(); }
+  else if (k === "?") toggleHelp();
+  else if (k === "Escape") toggleHelp(false);
+  else if (k === "Enter" && e.target.tagName !== "BUTTON" && !$("btn-stage-run").disabled) $("btn-stage-run").click();
+  else if (k.toLowerCase() === "d" && !$("btn-dock").disabled) $("btn-dock").click();
+  else if (k.toLowerCase() === "p" && !$("btn-optimise").disabled) $("btn-optimise").click();
+  else if (k.toLowerCase() === "a" && S.stage === "pose") { const c = $("pose-apo"); c.checked = !c.checked; c.onchange({ target: c }); }
+});
+
 // ------------------------------------------------------------------------------ startup
 async function startup() {
   const mockUrls = ["../mock/mock_run.json", "mock_run.json", "/studio/mock/mock_run.json"];
@@ -308,13 +533,15 @@ async function startup() {
     }
     return;
   }
-  try {
-    const r = await fetch(apiBase() + "/api/health");
-    const h = await r.json();
-    setStatus(h.stub ? "Server connected (stub server: every run replays the scripted mock data)" : "Server connected");
-  } catch (_) {
-    setStatus("Server not reachable. Open with ?mock=1 to play the recorded mock run without a backend.");
-  }
+  setStatus("Connecting…");
+  const mode = await API.probe();
+  paintMode();
+  if (mode === "live") setStatus(API.api.health?.stub ? "Server connected (stub server: every run replays the scripted mock data)" : "Server connected");
+  else if (mode === "fixtures") setStatus("Fixture mode: synthetic data for UI development");
+  else setStatus("Backend offline: showing a recorded replay");
+  await loadTargets();
   if (q.get("smiles")) { upload.setSmiles(q.get("smiles")); upload.check(); }
+  const st = q.get("stage");
+  if (st && ["binding", "pose", "pharmacology", "manual"].includes(st)) setStage(st);
 }
 startup();
