@@ -23,7 +23,9 @@ def db_path() -> Path:
         path = Path(p)
         path.parent.mkdir(parents=True, exist_ok=True)
         return path
-    return cache_dir() / "studio.db"
+    path = cache_dir() / "studio.db"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def _now() -> datetime:
