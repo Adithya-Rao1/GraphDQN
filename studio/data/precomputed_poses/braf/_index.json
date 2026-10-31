@@ -1,0 +1,29 @@
+{
+ "target": "braf",
+ "drugs": [
+  {
+   "target": "braf",
+   "drug": "Vemurafenib",
+   "status": "done",
+   "pose_confidence": 0.65,
+   "affinity": 8.258600296936017,
+   "wall_s_batch": 92.8
+  },
+  {
+   "target": "braf",
+   "drug": "Dabrafenib",
+   "status": "done",
+   "pose_confidence": 0.65,
+   "affinity": 8.329600609304496,
+   "wall_s_batch": 92.8
+  },
+  {
+   "target": "braf",
+   "drug": "Encorafenib",
+   "status": "done",
+   "pose_confidence": 0.67,
+   "affinity": 8.835778698253927,
+   "wall_s_batch": 92.8
+  }
+ ]
+}

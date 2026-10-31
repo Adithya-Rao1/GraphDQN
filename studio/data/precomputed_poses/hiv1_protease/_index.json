@@ -1,0 +1,45 @@
+{
+ "target": "hiv1_protease",
+ "drugs": [
+  {
+   "target": "hiv1_protease",
+   "drug": "Indinavir",
+   "status": "done",
+   "pose_confidence": 0.64,
+   "affinity": 8.379616663767369,
+   "wall_s_batch": 102.8
+  },
+  {
+   "target": "hiv1_protease",
+   "drug": "Saquinavir",
+   "status": "done",
+   "pose_confidence": 0.72,
+   "affinity": 8.60748986576747,
+   "wall_s_batch": 102.8
+  },
+  {
+   "target": "hiv1_protease",
+   "drug": "Ritonavir",
+   "status": "done",
+   "pose_confidence": 0.67,
+   "affinity": 8.198547109849777,
+   "wall_s_batch": 102.8
+  },
+  {
+   "target": "hiv1_protease",
+   "drug": "Nelfinavir",
+   "status": "done",
+   "pose_confidence": 0.7,
+   "affinity": 9.001591813395823,
+   "wall_s_batch": 102.8
+  },
+  {
+   "target": "hiv1_protease",
+   "drug": "Amprenavir",
+   "status": "done",
+   "pose_confidence": 0.7,
+   "affinity": 8.64986672578903,
+   "wall_s_batch": 102.8
+  }
+ ]
+}

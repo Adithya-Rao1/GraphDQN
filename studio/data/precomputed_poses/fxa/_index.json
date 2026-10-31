@@ -1,0 +1,37 @@
+{
+ "target": "fxa",
+ "drugs": [
+  {
+   "target": "fxa",
+   "drug": "Apixaban",
+   "status": "done",
+   "pose_confidence": 0.68,
+   "affinity": 8.188577671458184,
+   "wall_s_batch": 98.1
+  },
+  {
+   "target": "fxa",
+   "drug": "Rivaroxaban",
+   "status": "done",
+   "pose_confidence": 0.72,
+   "affinity": 8.334681845403313,
+   "wall_s_batch": 98.1
+  },
+  {
+   "target": "fxa",
+   "drug": "Edoxaban",
+   "status": "done",
+   "pose_confidence": 0.69,
+   "affinity": 7.953998073664266,
+   "wall_s_batch": 98.1
+  },
+  {
+   "target": "fxa",
+   "drug": "Betrixaban",
+   "status": "done",
+   "pose_confidence": 0.71,
+   "affinity": 7.8469486961809425,
+   "wall_s_batch": 98.1
+  }
+ ]
+}

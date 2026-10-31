@@ -1,0 +1,37 @@
+{
+ "target": "egfr",
+ "drugs": [
+  {
+   "target": "egfr",
+   "drug": "Erlotinib",
+   "status": "done",
+   "pose_confidence": 0.66,
+   "affinity": 6.488493712318782,
+   "wall_s_batch": 96.4
+  },
+  {
+   "target": "egfr",
+   "drug": "Gefitinib",
+   "status": "done",
+   "pose_confidence": 0.67,
+   "affinity": 7.552726400967275,
+   "wall_s_batch": 96.4
+  },
+  {
+   "target": "egfr",
+   "drug": "Lapatinib",
+   "status": "done",
+   "pose_confidence": 0.64,
+   "affinity": 7.742337427857952,
+   "wall_s_batch": 96.4
+  },
+  {
+   "target": "egfr",
+   "drug": "Afatinib",
+   "status": "done",
+   "pose_confidence": 0.68,
+   "affinity": 7.779560293880297,
+   "wall_s_batch": 96.4
+  }
+ ]
+}
