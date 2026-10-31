@@ -1,13 +1,13 @@
 /* Metis Lead Studio: accounts UI. Uses the app tokens (--panel, --line, --accent, ...) with dark fallbacks. */
 .acct { display: flex; align-items: center; gap: 8px; position: relative; }
-.acct .abtn { border: 1px solid var(--line, #243247); background: var(--panel2, #0e141e); color: var(--fg, #ecf1f9); border-radius: 9px; padding: 6px 12px; cursor: pointer; font-size: .85rem; }
-.acct .abtn:hover { border-color: var(--accent, #5ea1ff); }
-.acct .abtn.primary { background: var(--accent, #5ea1ff); color: var(--accent-fg, #06101f); border-color: transparent; font-weight: 600; }
-.acct .abtn.danger { color: var(--bad, #ff6b63); }
-.acct .abtn:disabled { opacity: .5; cursor: default; }
-.acct .abtn:focus-visible, .acct-modal :focus-visible, .acct-drawer :focus-visible { outline: 2px solid var(--accent, #5ea1ff); outline-offset: 2px; }
-.acct .save-run { border-color: var(--good, #34f5a1); color: var(--good, #34f5a1); }
-.acct .user-btn::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--good, #34f5a1); margin-right: 8px; }
+.abtn { white-space: nowrap; line-height: 1.2; height: auto; border: 1px solid var(--line, #243247); background: var(--panel2, #0e141e); color: var(--fg, #ecf1f9); border-radius: 9px; padding: 6px 12px; cursor: pointer; font-size: .85rem; }
+.abtn:hover { border-color: var(--accent, #5ea1ff); }
+.abtn.primary { background: var(--accent, #5ea1ff); color: var(--accent-fg, #06101f); border-color: transparent; font-weight: 600; }
+.abtn.danger { color: var(--bad, #ff6b63); }
+.abtn:disabled { opacity: .5; cursor: default; }
+.abtn:focus-visible, .acct-modal :focus-visible, .acct-drawer :focus-visible { outline: 2px solid var(--accent, #5ea1ff); outline-offset: 2px; }
+.abtn.save-run { border-color: var(--good, #34f5a1); color: var(--good, #34f5a1); }
+.abtn.user-btn::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--good, #34f5a1); margin-right: 8px; }
 .acct-menu { position: absolute; right: 0; top: 40px; min-width: 190px; background: var(--panel, #121925); border: 1px solid var(--line, #243247); border-radius: 12px; box-shadow: var(--shadow, 0 10px 30px rgba(0,0,0,.45)); padding: 6px; z-index: 60; }
 .acct-menu button { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 9px 12px; border-radius: 8px; color: var(--fg, #ecf1f9); cursor: pointer; font-size: .9rem; }
 .acct-menu button:hover { background: var(--panel2, #0e141e); }
@@ -50,4 +50,4 @@
 .acct-item .acts { display: flex; gap: 6px; margin-top: 9px; }
 .acct-empty { color: var(--muted, #97a6bb); text-align: center; padding: 30px 10px; font-size: .9rem; }
 .acct-toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--panel, #121925); border: 1px solid var(--line, #243247); color: var(--fg, #ecf1f9); padding: 9px 16px; border-radius: 10px; z-index: 90; font-size: .88rem; box-shadow: var(--shadow, 0 10px 30px rgba(0,0,0,.45)); }
-@media (max-width: 640px) { .acct .save-run { display: none; } }
+@media (max-width: 640px) { .abtn.save-run { display: none; } }
