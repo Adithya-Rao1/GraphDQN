@@ -198,12 +198,13 @@ class Operators:
         if a.smiles == b.smiles or len(fa) < 2 and len(fb) < 2:
             return None
         pool = sorted(set(fa) | set(fb))
-        pool = sorted(self.rng.sample(pool, min(len(pool), 10)))
+        # BRICSBuild enumerates exponentially in pool size and depth (minutes on drug-sized parents)
+        pool = sorted(self.rng.sample(pool, min(len(pool), 4)))
         seed_frag = self.rng.choice(fa)
         try:
             frags = [Chem.MolFromSmiles(s) for s in sorted(set(pool) | {seed_frag})]
             gen = BRICS.BRICSBuild(frags, onlyCompleteMols=True, seeds=[Chem.MolFromSmiles(seed_frag)],
-                                   scrambleReagents=False, maxDepth=3)
+                                   scrambleReagents=False, maxDepth=2)
             raw = []
             for m in itertools.islice(gen, max_products):
                 try:
